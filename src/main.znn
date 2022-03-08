@@ -1,0 +1,196 @@
+
+import "sdl.znn";
+import "sdl_surface.znn";
+import "sdl_canvas.znn";
+import "ui.znn";
+import "std/io.znn";
+import "ui_reader.znn";
+import "sdl_ttf.znn";
+import "ui_data.znn";
+import "std/enum_set.znn";
+import "std/enum.znn";
+import "std/time.znn";
+import "std/flags.znn";
+import "std/panic.znn";
+import "pretty_input.znn";
+import "editor_ui.znn";
+import "std/vector.znn";
+import "sdl_event.znn";
+
+box<UIElement>!string readUIFrom(string path) {
+  const content = *open_file_r(path)^.read_content();
+  mutable stream = try create_input_stream(content);
+  stream.add_concept_mapping<UIElement, EditorUI>("editor");
+  stream.register_ui_elems();
+  return stream.read_data<box<UIElement>>();
+}
+
+export bool round_brackets(pretty_dummy_struct<EditorUI>) {
+  return true;
+}
+
+struct Flags {
+  bool noPanicHandler;
+  string? font;
+  vector<string> all;
+};
+
+template <Types...> requires copy<Types>...
+UIRecord createRecord(string[] names, Types... values) {
+  mutable ret = UIRecord();
+  static for (i = 0; i < countof(values); ++i) {
+    ret.insert(names[i], values...[i].copy().box_as<any>());
+  }
+  return move(ret);
+}
+
+void showDialog(SDLWindow* window, SDLCanvas* canvas, rectangle* rect, UIElement* ui, string message) {
+  mutable uiData = UIRecord();
+  mutable uiState = UIState();
+  ui^.render(UIContext(canvas, &createRecord({"dialog_text"}.slice(), message), &uiState, 0.0), rect);
+  window^.update();
+}
+
+vector<string> breakLines(string content) {
+  mutable ret = {""}.as_vector();
+  for (c : content)
+    if (*c == '\n')
+      ret.push_back("");
+    else
+      *ret.back() += *c;
+  return move(ret);
+}
+
+string joinLines(vector<string>* lines) {
+  mutable ret = "";
+  for (it : *lines) {
+    if (it.index > 0)
+      ret += '\n';
+    ret += *it;
+  }
+  return move(ret);
+}
+
+void setPrompt(UIRecord mutable* uiData, string question, box<invoke<void>> callback_yes,
+    box<invoke<void>> callback_no) {
+  uiData->insert("prompt_callback_yes", [move(callback_yes), uiData] {
+    callback_yes^();
+    uiData->erase(&"prompt_callback_yes");
+    uiData->erase(&"prompt_callback_no");
+    uiData->erase(&"prompt_text");
+  }.box_as<UICallback>().box_as<any>());
+  uiData->insert("prompt_callback_no", [move(callback_no), uiData] {
+    callback_no^();
+    uiData->erase(&"prompt_callback_yes");
+    uiData->erase(&"prompt_callback_no");
+    uiData->erase(&"prompt_text");
+  }.box_as<UICallback>().box_as<any>());
+  uiData->insert("prompt_text", question.box_as<any>());
+}
+
+void tryLoadingContent(string? path, UIState mutable* uiState) {
+  if (path)
+    if (const file = open_file_r(*path))
+      if (const content = file^.read_content()) {
+        mutable editorState = uiState->get_state<EditorUIState>();
+        editorState->buffer.text = breakLines(*content);
+      }
+}
+
+bool isContentUpdated(string? path, UIState mutable* uiState) {
+  mutable content = "";
+  if (path)
+    if (const file = open_file_r(*path))
+      if (const cnt = file^.read_content())
+        content = *cnt;
+  return content != joinLines(&uiState->get_state<EditorUIState>()->buffer.text);
+}
+
+int main(string[] args) {
+  const flags = *read_flags<Flags>(args);
+  const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
+  if (!flags.noPanicHandler)
+    set_panic_handler(&panic_handler);
+  *sdl_init();
+  const path = [&flags] -> string? {
+    if (!flags.all.empty())
+      return flags.all[0];
+    return null;
+  }();
+  mutable ui = *readUIFrom("ui.txt");
+  const window = *sdl_create_window(vec2(1280, 720), (path ?? "[no name]") + " - ZIM");
+  mutable font = *window.loadSDLFont(flags.font ?? "font.ttf", 10, 100);
+  const getCanvas = [&] {
+    const textTexture = *window.make_target_texture(vec2(100, 100));
+    const gameSprites = hash_map<string, sdl_texture>();
+    return SDLCanvas(&window, &font, move(gameSprites), move(textTexture));
+  };
+  mutable canvas = getCanvas();
+  mutable uiBounds = rectangle(vec2(0, 0), window.size());
+  showDialog(&window, &canvas, &uiBounds, ui.get(), "Generating levels...");
+  mutable exit = false;
+  mutable lastUpdate = current_time_milli();
+  mutable uiData = UIRecord();
+  mutable flushEvents = false;
+  mutable eventsState = SDLEventsState();
+  mutable uiState = UIState();
+  tryLoadingContent(path, &uiState);
+  uiData.insert("exit_callback", [&exit, &uiData, &eventsState, &flushEvents, &path, &uiState] {
+    if (!isContentUpdated(path, &uiState))
+      exit = true;
+    else
+    setPrompt(&uiData, "Exit?",
+        [&exit] { exit = true; }.box_as<invoke<void>>(),
+        [&eventsState, &flushEvents] {
+          flushEvents = true;
+          discard eventsState.getEvents();
+        }.box_as<invoke<void>>()
+    );
+  }.box_as<UICallback>().box_as<any>());
+  if (path)
+    uiData.insert("file_name", path->box_as<any>());
+  uiData.insert("save_callback", [&] {
+    if (const file = open_file_w(*path)) {
+      const editorState = uiState.get_state<EditorUIState>();
+      file->printf(joinLines(&editorState->buffer.text));
+    }
+  }.box_as<UICallback>().box_as<any>());
+  while (!exit) {
+    const curTime = current_time_milli();
+    const timeDiff = 0.001 * (curTime - lastUpdate);
+    lastUpdate = curTime;
+    const context = UIContext(&canvas, &uiData, &uiState, timeDiff);
+    for (event : eventsState.getEvents()) {
+      if (exit || flushEvents) {
+        flushEvents = false;
+        break;
+      }
+      switch (*event) {
+        case (windowResized) {
+          uiBounds = rectangle(vec2(0, 0), windowResized);
+        }
+        case (quit) { return 0; }
+        case (key) {
+          if (key.key == key_type::F1 && key.type == key_event_type::DOWN) {
+            canvas = getCanvas();
+            if (const res = readUIFrom("ui.txt"))
+              ui = *move(res);
+            else
+              printf(res.get_error());
+            } else
+            discard ui^.onKeyEvent(context, &uiBounds, &key);
+        }
+        case (mouse) {
+          discard ui^.onMouseEvent(context, &uiBounds, &mouse);
+        }
+        case (text) {
+          discard ui^.onTextEvent(context, &uiBounds, text);
+        }
+        default {}
+      }
+    }
+    ui^.render(context, &uiBounds);
+    window.update();
+  }
+  return 0;
+}

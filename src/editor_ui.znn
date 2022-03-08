@@ -1,0 +1,119 @@
+export import "ui.znn";
+import "std/vector.znn";
+import "std/io.znn";
+export import "buffer.znn";
+
+export [@ui_element]
+struct EditorUI {
+  int fontSize;
+};
+
+export struct EditorUIState {
+  Buffer buffer;
+  vec2 cursor;
+  int scrollPos;
+};
+
+vec2 getVisibleCursor(EditorUIState* state) {
+  mutable ret = state->cursor;
+  ret.x = min(ret.x, state->buffer.text[state->cursor.y].size());
+  return move(ret);
+}
+
+export EditorUIState() {
+  return EditorUIState::EditorUIState(Buffer(), vec2(0, 0), 0);
+}
+
+export void render(EditorUI* editor, UIContext context, rectangle* r) {
+  const state = context.state^.get_state<EditorUIState>();
+  const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+  const textColor = color(255, 255, 255);
+  for (line : range(state->scrollPos, state->buffer.text.size())) {
+    const pos = r->v1 + vec2(0, (line - state->scrollPos) * textSize.y);
+    if (pos.y > r->v2.y)
+      break;
+    context.canvas->drawText(pos, state->buffer.text[line], editor->fontSize, &textColor);
+  }
+  const cursorPos = r->v1 + textSize.pairwise_mult(state->getVisibleCursor() - vec2(0, state->scrollPos));
+  context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &textColor);
+}
+
+export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_event* event) {
+  const state = context.state^.get_state<EditorUIState>();
+  if (event^.type != key_event_type::DOWN || event->modifiers.contains(key_event_modifier::LCTRL))
+    return false;
+  switch (event^.key) {
+    case (ENTER) {
+      state->buffer.onEnter(state->getVisibleCursor());
+      ++state->cursor.y;
+      state->cursor.x = 0;
+    }
+    case (BACKSPACE) {
+      state->cursor = state->buffer.onBackspace(state->getVisibleCursor());
+    }
+    case (DELETE) {
+      state->cursor = state->buffer.onDelete(state->getVisibleCursor());
+    }
+    case (HOME) {
+      state->cursor.x = 0;
+    }
+    case (END) {
+      state->cursor.x = state->buffer.text[state->cursor.y].size();
+    }
+    case (UP) {
+      state->cursor.y = max(0, state->cursor.y - 1);
+    }
+    case (DOWN) {
+      state->cursor.y = min(state->buffer.text.size() - 1, state->cursor.y + 1);
+    }
+    case (LEFT) {
+      const cursor = state->getVisibleCursor();
+      if (cursor.x == 0) {
+        if (cursor.y > 0) {
+          --state->cursor.y;
+          state->cursor.x = state->buffer.text[state->cursor.y].size();
+        }
+      } else
+        state->cursor.x = cursor.x - 1;
+    }
+    case (RIGHT) {
+      if (state->cursor.x >= state->buffer.text[state->cursor.y].size()) {
+        if (state->cursor.y < state->buffer.text.size() - 1) {
+          ++state->cursor.y;
+          state->cursor.x = 0;
+        }
+      } else
+        ++state->cursor.x;
+    }
+    default {
+      return false;
+    }
+  }
+  while (true) {
+    const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+    const cursorPos = r->v1.y + textSize.y * (state->getVisibleCursor().y - state->scrollPos);
+    if (state->scrollPos > 0 && cursorPos < r->v1.y + 20)
+      --state->scrollPos;
+    else if (cursorPos > r->v2.y - textSize.y)
+      ++state->scrollPos;
+    else
+      break;
+  }
+  return true;
+}
+
+export bool onMouseEvent(EditorUI*, UIContext, rectangle*, mouse_event*) {
+  return false;
+}
+
+export bool onTextEvent(EditorUI*, UIContext context, rectangle*, string text) {
+  const state = context.state^.get_state<EditorUIState>();
+  const cursor = state->getVisibleCursor();
+  state->buffer.text[cursor.y] = state->buffer.text[cursor.y].insert(cursor.x, text);
+  state->cursor.x = cursor.x + text.size();
+  return true;
+}
+
+export void destruct(EditorUI*) {
+}
+
