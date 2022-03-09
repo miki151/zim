@@ -16,16 +16,22 @@ import "pretty_input.znn";
 import "editor_ui.znn";
 import "std/vector.znn";
 import "sdl_event.znn";
+import "scrollbar_ui.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
   mutable stream = try create_input_stream(content);
   stream.add_concept_mapping<UIElement, EditorUI>("editor");
+  stream.add_concept_mapping<UIElement, ScrollbarUI>("scrollbar");
   stream.register_ui_elems();
   return stream.read_data<box<UIElement>>();
 }
 
 export bool round_brackets(pretty_dummy_struct<EditorUI>) {
+  return true;
+}
+
+export bool round_brackets(pretty_dummy_struct<ScrollbarUI>) {
   return true;
 }
 
@@ -42,13 +48,6 @@ UIRecord createRecord(string[] names, Types... values) {
     ret.insert(names[i], values...[i].copy().box_as<any>());
   }
   return move(ret);
-}
-
-void showDialog(SDLWindow* window, SDLCanvas* canvas, rectangle* rect, UIElement* ui, string message) {
-  mutable uiData = UIRecord();
-  mutable uiState = UIState();
-  ui^.render(UIContext(canvas, &createRecord({"dialog_text"}.slice(), message), &uiState, 0.0), rect);
-  window^.update();
 }
 
 vector<string> breakLines(string content) {
@@ -127,7 +126,6 @@ int main(string[] args) {
   };
   mutable canvas = getCanvas();
   mutable uiBounds = rectangle(vec2(0, 0), window.size());
-  showDialog(&window, &canvas, &uiBounds, ui.get(), "Generating levels...");
   mutable exit = false;
   mutable lastUpdate = current_time_milli();
   mutable uiData = UIRecord();
@@ -135,17 +133,18 @@ int main(string[] args) {
   mutable eventsState = SDLEventsState();
   mutable uiState = UIState();
   tryLoadingContent(path, &uiState);
-  uiData.insert("exit_callback", [&exit, &uiData, &eventsState, &flushEvents, &path, &uiState] {
-    if (!isContentUpdated(path, &uiState))
+  mutable loadedContent = uiState.get_state<EditorUIState>()->buffer.text.copy();
+  uiData.insert("exit_callback", [&loadedContent, &exit, &uiData, &eventsState, &flushEvents, &path, &uiState] {
+    if (loadedContent == uiState.get_state<EditorUIState>()->buffer.text)
       exit = true;
     else
-    setPrompt(&uiData, "Exit?",
-        [&exit] { exit = true; }.box_as<invoke<void>>(),
-        [&eventsState, &flushEvents] {
-          flushEvents = true;
-          discard eventsState.getEvents();
-        }.box_as<invoke<void>>()
-    );
+      setPrompt(&uiData, "Exit?",
+          [&exit] { exit = true; }.box_as<invoke<void>>(),
+          [&eventsState, &flushEvents] {
+            flushEvents = true;
+            discard eventsState.getEvents();
+          }.box_as<invoke<void>>()
+      );
   }.box_as<UICallback>().box_as<any>());
   if (path)
     uiData.insert("file_name", path->box_as<any>());
@@ -153,9 +152,14 @@ int main(string[] args) {
     if (const file = open_file_w(*path)) {
       const editorState = uiState.get_state<EditorUIState>();
       file->printf(joinLines(&editorState->buffer.text));
+      loadedContent = uiState.get_state<EditorUIState>()->buffer.text.copy();
     }
   }.box_as<UICallback>().box_as<any>());
   while (!exit) {
+    if (loadedContent == uiState.get_state<EditorUIState>()->buffer.text)
+      uiData.insert("no_changes", 1.box_as<any>());
+    else
+      uiData.erase(&"no_changes");
     const curTime = current_time_milli();
     const timeDiff = 0.001 * (curTime - lastUpdate);
     lastUpdate = curTime;

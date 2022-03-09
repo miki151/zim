@@ -3,6 +3,7 @@ Def horizontal list HORIZONTAL End
 Def vertical list VERTICAL End
 
 Def BorderColor 150 150 150 End
+Def SavedColor 100 200 100 End
 
 {
   using "reload_ui" key_handler(F1 DOWN {})
@@ -10,9 +11,16 @@ Def BorderColor 150 150 150 End
   using "save_callback" key_handler(S DOWN {LCTRL} )
   fill(BorderColor)
   horizontal {
-    width 5 fill(BorderColor)
+    width 5 {
+      fill(BorderColor)
+      using "no_changes" fill(SavedColor)
+    }
     stretch {fill(0 0 0) margins(3, editor(fontSize = 20))}
-    width 5 fill(BorderColor)
+    width 5 {
+      fill(BorderColor)
+      using "no_changes" fill(SavedColor)
+      scrollbar(color = 255 255 255 fontSize = 20)
+    }
   }
   using "prompt_text" key_handler(null)
   using "prompt_text" position(CENTER, width 400 height 80 {
