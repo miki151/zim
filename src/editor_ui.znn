@@ -6,6 +6,7 @@ export import "buffer.znn";
 export [@ui_element]
 struct EditorUI {
   int fontSize;
+  int tabWidth;
 };
 
 export struct EditorUIState {
@@ -72,6 +73,12 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
     }
     case (PAGE_DOWN) {
       state->cursor.y = min(state->buffer.text.size() - 1, state->cursor.y + r->height() / textSize.y);
+    }
+    case (TAB) {
+      mutable tabs = "";
+      for (i : range(0, editor->tabWidth))
+        tabs += " ";
+      discard editor->onTextEvent(context, r, tabs);
     }
     case (LEFT) {
       const cursor = state->getVisibleCursor();
