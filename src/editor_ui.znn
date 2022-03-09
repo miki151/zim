@@ -41,14 +41,12 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
 
 export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_event* event) {
   const state = context.state^.get_state<EditorUIState>();
-  if (event^.type != key_event_type::DOWN || event->modifiers.contains(key_event_modifier::LCTRL))
+  if (event^.type != key_event_type::DOWN)
     return false;
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
   switch (event^.key) {
     case (ENTER) {
-      state->buffer.onEnter(state->getVisibleCursor());
-      ++state->cursor.y;
-      state->cursor.x = 0;
+      state->cursor = state->buffer.onEnter(state->getVisibleCursor());
     }
     case (BACKSPACE) {
       state->cursor = state->buffer.onBackspace(state->getVisibleCursor());
@@ -99,6 +97,22 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else
         ++state->cursor.x;
     }
+    case (Z) {
+      if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
+        if (const pos = state->buffer.undo(state->getVisibleCursor()))
+          state->cursor = *pos;
+        return true;
+      }
+      return false;
+    }
+    case (Y) {
+      if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
+        if (const pos = state->buffer.redo(state->getVisibleCursor()))
+          state->cursor = *pos;
+        return true;
+      }
+      return false;
+    }
     default {
       return false;
     }
@@ -121,9 +135,7 @@ export bool onMouseEvent(EditorUI*, UIContext, rectangle*, mouse_event*) {
 
 export bool onTextEvent(EditorUI*, UIContext context, rectangle*, string text) {
   const state = context.state^.get_state<EditorUIState>();
-  const cursor = state->getVisibleCursor();
-  state->buffer.text[cursor.y] = state->buffer.text[cursor.y].insert(cursor.x, text);
-  state->cursor.x = cursor.x + text.size();
+  state->cursor = state->buffer.onText(text, state->getVisibleCursor());
   return true;
 }
 

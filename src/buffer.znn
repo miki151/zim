@@ -1,25 +1,71 @@
 
 export import "std/vector.znn";
-import "vec2.znn";
+export import "vec2.znn";
+
+export struct HistoryElem {
+  vector<string> text;
+  vec2 cursorBefore;
+  vec2 cursorAfter;
+};
 
 export struct Buffer {
   vector<string> text;
+  vector<HistoryElem> history;
+  vector<HistoryElem> forward;
 };
 
 export Buffer() {
-  return Buffer::Buffer({""}.as_vector());
+  return Buffer::Buffer({""}.as_vector(),
+      vector<HistoryElem>(),
+      vector<HistoryElem>());
 }
 
-export void onEnter(Buffer mutable* buf, vec2 pos) {
+void addHistory(Buffer mutable* buf, vector<string> text, vec2 cursorBefore, vec2 cursorAfter) {
+  buf->history.push_back(HistoryElem(move(text), cursorBefore, cursorAfter));
+  buf->forward.clear();
+}
+
+export vec2? undo(Buffer mutable* buf, vec2 pos) {
+  if (!buf->history.empty()) {
+    const elem = buf->history.pop_back();
+    buf->forward.push_back(HistoryElem(buf->text.copy(), elem.cursorBefore, elem.cursorAfter));
+    buf->text = elem.text.copy();
+    return elem.cursorBefore;
+  }
+  return null;
+}
+
+export vec2? redo(Buffer mutable* buf, vec2 pos) {
+  if (!buf->forward.empty()) {
+    const elem = buf->forward.pop_back();
+    buf->history.push_back(HistoryElem(buf->text.copy(), elem.cursorBefore, elem.cursorAfter));
+    buf->text = elem.text.copy();
+    return elem.cursorAfter;
+  }
+  return null;
+}
+
+export vec2 onText(Buffer mutable* buf, string text, vec2 pos) {
+  const newPos = pos + vec2(text.size(), 0);
+  buf->addHistory(buf->text.copy(), pos, newPos);
+  buf->text[pos.y] = buf->text[pos.y].insert(pos.x, text);
+  return newPos;
+}
+
+export vec2 onEnter(Buffer mutable* buf, vec2 pos) {
+  buf->addHistory(buf->text.copy(), pos, vec2(0, pos.y + 1));
   assert(pos.y >= 0 && pos.y < buf->text.size());
   buf->text.insert(pos.y + 1, "");
   if (pos.x < buf->text[pos.y].size()) {
     buf->text[pos.y + 1] = buf->text[pos.y].substring(pos.x, buf->text[pos.y].size() - pos.x);
     buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x);
   }
+  return vec2(0, pos.y + 1);
 }
 
 export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos) {
+  const textCopy = buf->text.copy();
+  const oldPos = pos;
   if (pos.x > 0) {
     buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x - 1)
         + buf->text[pos.y].substring(pos.x, buf->text[pos.y].size() - pos.x);
@@ -30,10 +76,12 @@ export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos) {
     buf->text.remove(pos.y);
     --pos.y;
   }
+  buf->addHistory(move(textCopy), oldPos, pos);
   return pos;
 }
 
 export vec2 onDelete(Buffer mutable* buf, vec2 pos) {
+  buf->addHistory(buf->text.copy(), pos, pos);
   if (pos.x < buf->text[pos.y].size()) {
     buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x)
       + buf->text[pos.y].substring(pos.x + 1, buf->text[pos.y].size() - pos.x - 1);
