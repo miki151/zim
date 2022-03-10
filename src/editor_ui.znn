@@ -17,6 +17,7 @@ export struct EditorUIState {
   vec2 cursor;
   int scrollPos;
   vec2? selectionStart;
+  bool mouseSelection;
 };
 
 vec2 getVisibleCursor(EditorUIState* state) {
@@ -26,7 +27,7 @@ vec2 getVisibleCursor(EditorUIState* state) {
 }
 
 export EditorUIState() {
-  return EditorUIState::EditorUIState(Buffer(), vec2(0, 0), 0, null);
+  return EditorUIState::EditorUIState(Buffer(), vec2(0, 0), 0, null, false);
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
@@ -205,9 +206,26 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
 export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mouse_event* event) {
   const state = context.state^.get_state<EditorUIState>();
   switch (event->type) {
+    case (MOUSE_MOVEMENT) {
+      if (state->mouseSelection) {
+        const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+        state->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, state->scrollPos);
+      }
+      return true;
+    }
+    case (LEFT_RELEASED) {
+      if (state->mouseSelection) {
+        if (state->selectionStart == state->cursor)
+          state->selectionStart = null;
+        state->mouseSelection = false;
+        return true;
+      }
+    }
     case (LEFT) {
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       state->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, state->scrollPos);
+      state->selectionStart = state->cursor;
+      state->mouseSelection = true;
       return true;
     }
     case (WHEEL_UP) {
