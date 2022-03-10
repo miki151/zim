@@ -50,26 +50,6 @@ UIRecord createRecord(string[] names, Types... values) {
   return move(ret);
 }
 
-vector<string> breakLines(string content) {
-  mutable ret = {""}.as_vector();
-  for (c : content)
-    if (*c == '\n')
-      ret.push_back("");
-    else
-      *ret.back() += *c;
-  return move(ret);
-}
-
-string joinLines(vector<string>* lines) {
-  mutable ret = "";
-  for (it : *lines) {
-    if (it.index > 0)
-      ret += '\n';
-    ret += *it;
-  }
-  return move(ret);
-}
-
 void setPrompt(UIRecord mutable* uiData, string question, box<invoke<void>> callback_yes,
     box<invoke<void>> callback_no) {
   uiData->insert("prompt_callback_yes", [move(callback_yes), uiData] {

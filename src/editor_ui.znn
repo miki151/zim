@@ -7,12 +7,15 @@ export [@ui_element]
 struct EditorUI {
   int fontSize;
   int tabWidth;
+  color selectionColor;
+  color textColor;
 };
 
 export struct EditorUIState {
   Buffer buffer;
   vec2 cursor;
   int scrollPos;
+  vec2? selectionStart;
 };
 
 vec2 getVisibleCursor(EditorUIState* state) {
@@ -22,21 +25,42 @@ vec2 getVisibleCursor(EditorUIState* state) {
 }
 
 export EditorUIState() {
-  return EditorUIState::EditorUIState(Buffer(), vec2(0, 0), 0);
+  return EditorUIState::EditorUIState(Buffer(), vec2(0, 0), 0, null);
+}
+
+void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
+  const state = context.state^.get_state<EditorUIState>();
+  if (!!state->selectionStart && *state->selectionStart != state->cursor) {
+    mutable startPos = *state->selectionStart;
+    mutable endPos = state->getVisibleCursor();
+    if ((startPos.y == endPos.y && startPos.x > endPos.x) || startPos.y > endPos.y)
+      swap(&startPos, &endPos);
+    const origStartLine = startPos.y;
+    const renderLine = [&] (int line, int px, int kx) {
+      const pos = r->v1 + vec2(px, (line - state->scrollPos)).pairwise_mult(textSize);
+      const pos2 = r->v1 + vec2(kx, (line + 1 - state->scrollPos)).pairwise_mult(textSize);
+      context.canvas->fillRectangle(&rectangle(pos, pos2), &editor->selectionColor);
+    };
+    while (startPos.y <= endPos.y) {
+      renderLine(startPos.y, startPos.y == origStartLine ? startPos.x : 0,
+          startPos.y == endPos.y ? endPos.x : state->buffer.text[startPos.y].size());
+      ++startPos.y;
+    }
+  }
 }
 
 export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const state = context.state^.get_state<EditorUIState>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
-  const textColor = color(255, 255, 255);
+  renderSelection(editor, context, r, textSize);
   for (line : range(state->scrollPos, state->buffer.text.size())) {
     const pos = r->v1 + vec2(0, (line - state->scrollPos) * textSize.y);
     if (pos.y > r->v2.y)
       break;
-    context.canvas->drawText(pos, state->buffer.text[line], editor->fontSize, &textColor);
+    context.canvas->drawText(pos, state->buffer.text[line], editor->fontSize, &editor->textColor);
   }
   const cursorPos = r->v1 + textSize.pairwise_mult(state->getVisibleCursor() - vec2(0, state->scrollPos));
-  context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &textColor);
+  context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &editor->textColor);
 }
 
 export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_event* event) {
@@ -44,15 +68,32 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   if (event^.type != key_event_type::DOWN)
     return false;
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+  if (event^.key == key_type::UP || event^.key == key_type::DOWN || event^.key == key_type::LEFT
+      || event^.key == key_type::RIGHT || event^.key == key_type::PAGE_UP || event^.key == key_type::PAGE_DOWN
+      || event^.key == key_type::HOME || event^.key == key_type::END) {
+    if (event->modifiers.contains(key_event_modifier::LSHIFT)) {
+      if (!state->selectionStart)
+        state->selectionStart = state->getVisibleCursor();
+    } else
+      state->selectionStart = null;
+  }
   switch (event^.key) {
     case (ENTER) {
       state->cursor = state->buffer.onEnter(state->getVisibleCursor());
     }
     case (BACKSPACE) {
-      state->cursor = state->buffer.onBackspace(state->getVisibleCursor());
+      if (state->selectionStart) {
+        state->cursor = state->buffer.erase(*state->selectionStart, state->getVisibleCursor());
+        state->selectionStart = null;
+      } else
+        state->cursor = state->buffer.onBackspace(state->getVisibleCursor());
     }
     case (DELETE) {
-      state->cursor = state->buffer.onDelete(state->getVisibleCursor());
+      if (state->selectionStart) {
+        state->cursor = state->buffer.erase(*state->selectionStart, state->getVisibleCursor());
+        state->selectionStart = null;
+      } else
+        state->cursor = state->buffer.onDelete(state->getVisibleCursor());
     }
     case (HOME) {
       state->cursor.x = 0;
@@ -73,6 +114,10 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       state->cursor.y = min(state->buffer.text.size() - 1, state->cursor.y + r->height() / textSize.y);
     }
     case (TAB) {
+      if (state->selectionStart) {
+        state->cursor = state->buffer.erase(*state->selectionStart, state->getVisibleCursor());
+        state->selectionStart = null;
+      }
       mutable tabs = "";
       for (i : range(0, editor->tabWidth))
         tabs += " ";
@@ -96,6 +141,33 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         }
       } else
         ++state->cursor.x;
+    }
+    case (C) {
+      if (event^.modifiers.contains(key_event_modifier::LCTRL) && !!state->selectionStart) {
+        context.canvas->setClipboard(state->buffer.getString(*state->selectionStart, state->getVisibleCursor()));
+        return true;
+      }
+      return false;
+    }
+    case (X) {
+      if (event^.modifiers.contains(key_event_modifier::LCTRL) && !!state->selectionStart) {
+        context.canvas->setClipboard(state->buffer.getString(*state->selectionStart, state->getVisibleCursor()));
+        state->cursor = state->buffer.erase(*state->selectionStart, state->getVisibleCursor());
+        return true;
+      }
+      return false;
+    }
+    case (V) {
+      if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
+        const lines = breakLines(context.canvas->getClipboard());
+        for (it : lines) {
+          discard editor->onTextEvent(context, r, *it);
+          if (it.index < lines.size() - 1)
+            state->cursor = state->buffer.onEnter(state->getVisibleCursor());
+        }
+        return true;
+      }
+      return false;
     }
     case (Z) {
       if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
@@ -135,6 +207,10 @@ export bool onMouseEvent(EditorUI*, UIContext, rectangle*, mouse_event*) {
 
 export bool onTextEvent(EditorUI*, UIContext context, rectangle*, string text) {
   const state = context.state^.get_state<EditorUIState>();
+  if (state->selectionStart) {
+    state->cursor = state->buffer.erase(*state->selectionStart, state->getVisibleCursor());
+    state->selectionStart = null;
+  }
   state->cursor = state->buffer.onText(text, state->getVisibleCursor());
   return true;
 }

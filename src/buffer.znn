@@ -20,9 +20,57 @@ export Buffer() {
       vector<HistoryElem>());
 }
 
+export vector<string> breakLines(string content) {
+  mutable ret = {""}.as_vector();
+  for (c : content)
+    if (*c == '\n')
+      ret.push_back("");
+    else
+      *ret.back() += *c;
+  return move(ret);
+}
+
+export string joinLines(vector<string>* lines) {
+  mutable ret = "";
+  for (it : *lines) {
+    if (it.index > 0)
+      ret += '\n';
+    ret += *it;
+  }
+  return move(ret);
+}
+
+
 void addHistory(Buffer mutable* buf, vector<string> text, vec2 cursorBefore, vec2 cursorAfter) {
   buf->history.push_back(HistoryElem(move(text), cursorBefore, cursorAfter));
   buf->forward.clear();
+}
+
+export string getString(Buffer* buf, mutable vec2 startPos, mutable vec2 endPos) {
+  if ((startPos.y == endPos.y && startPos.x > endPos.x) || startPos.y > endPos.y)
+    swap(&startPos, &endPos);
+  mutable ret = "";
+  const origStartLine = startPos.y;
+  while (startPos.y <= endPos.y) {
+    if (!ret.empty())
+      ret += "\n";
+    const begin = startPos.y == origStartLine ? startPos.x : 0;
+    ret += buf->text[startPos.y].substring(begin,
+        (startPos.y == endPos.y ? endPos.x : buf->text[startPos.y].size()) - begin);
+    ++startPos.y;
+  }
+  return move(ret);
+}
+
+export vec2 erase(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPos) {
+  if ((startPos.y == endPos.y && startPos.x > endPos.x) || startPos.y > endPos.y)
+    swap(&startPos, &endPos);
+  buf->addHistory(buf->text.copy(), endPos, startPos);
+  buf->text[startPos.y] = buf->text[startPos.y].substring(0, startPos.x) +
+      buf->text[endPos.y].substring(endPos.x, buf->text[endPos.y].size() - endPos.x);
+  for (i : range(0, endPos.y - startPos.y))
+    buf->text.remove(startPos.y + 1);
+  return startPos;
 }
 
 export vec2? undo(Buffer mutable* buf, vec2 pos) {
