@@ -14,8 +14,8 @@ export struct Buffer {
   vector<HistoryElem> forward;
 };
 
-export Buffer() {
-  return Buffer::Buffer({""}.as_vector(),
+export Buffer(string content) {
+  return Buffer::Buffer(breakLines(move(content)),
       vector<HistoryElem>(),
       vector<HistoryElem>());
 }
@@ -30,9 +30,9 @@ export vector<string> breakLines(string content) {
   return move(ret);
 }
 
-export string joinLines(vector<string>* lines) {
+export string joinLines(Buffer* buffer) {
   mutable ret = "";
-  for (it : *lines) {
+  for (it : buffer->text) {
     if (it.index > 0)
       ret += '\n';
     ret += *it;

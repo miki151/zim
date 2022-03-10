@@ -16,14 +16,14 @@ Def UnsavedColor 200 100 100 End
       fill(UnsavedColor)
       using "no_changes" fill(SavedColor)
     }
-    stretch {fill(0 0 0) margins(3, editor(
+    stretch using "editor" {fill(0 0 0) margins(3, editor(
       tabWidth = 2
       fontSize = 20
       textColor = 255 255 255
       selectionColor = BorderColor
       mouseWheelStep = 4
     ))}
-    width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = 20)}
+    using "editor" width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = 20)}
     width 5 {
       fill(UnsavedColor)
       using "no_changes" fill(SavedColor)
@@ -40,6 +40,13 @@ Def UnsavedColor 200 100 100 End
       position(CENTER, label("Y/N", 20, 255 255 255))
     })
   }) 
+  using "next_buffer_path" position(CENTER, width 400 height 80 {
+    fill(BorderColor)
+    frame(1, 255 255 255)
+    position(CENTER, text(20, 255 255 255))
+  })
+  using "switch_buffer_callback1" key_handler(TAB DOWN {LCTRL} )
+  using "switch_buffer_callback2" key_handler(TAB UP {LCTRL} )
   using "prompt_callback_yes" key_handler(Y DOWN {} )
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
