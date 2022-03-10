@@ -9,6 +9,7 @@ struct EditorUI {
   int tabWidth;
   color selectionColor;
   color textColor;
+  int mouseWheelStep;
 };
 
 export struct EditorUIState {
@@ -201,8 +202,25 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   return true;
 }
 
-export bool onMouseEvent(EditorUI*, UIContext, rectangle*, mouse_event*) {
-  return false;
+export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mouse_event* event) {
+  const state = context.state^.get_state<EditorUIState>();
+  switch (event->type) {
+    case (LEFT) {
+      const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+      state->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, state->scrollPos);
+      return true;
+    }
+    case (WHEEL_UP) {
+      state->scrollPos = max(0, state->scrollPos - editor->mouseWheelStep);
+    }
+    case (WHEEL_DOWN) {
+      state->scrollPos += editor->mouseWheelStep;
+    }
+    default {
+      return false;
+    }
+  }
+  return true;
 }
 
 export bool onTextEvent(EditorUI*, UIContext context, rectangle*, string text) {
