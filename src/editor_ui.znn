@@ -214,6 +214,8 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       if (state->mouseSelection) {
         const textSize = context.canvas->getTextSize(" ", editor->fontSize);
         data->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
+        data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
+        data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
       }
       return true;
     }
@@ -228,6 +230,8 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
     case (LEFT) {
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       data->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
+      data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
+      data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
       data->selectionStart = data->cursor;
       state->mouseSelection = true;
       return true;
