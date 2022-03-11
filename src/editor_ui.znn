@@ -57,6 +57,8 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
 export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+  while (data^.scrollPos > 0 && r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos) < r^.v2.y)
+    --data->scrollPos;
   renderSelection(editor, context, r, textSize);
   for (line : range(data->scrollPos, data^.buffer.text.size())) {
     const pos = r->v1 + vec2(0, (line - data->scrollPos) * textSize.y);
