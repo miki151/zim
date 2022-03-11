@@ -1,4 +1,3 @@
-
 import "sdl.znn";
 import "sdl_surface.znn";
 import "sdl_canvas.znn";
@@ -74,6 +73,54 @@ bool isContentUpdated(vector<string>* paths, vector<EditorUIData>* data) {
   return true;
 }
 
+box<UICallback> getExitCallback(UIRecord mutable* uiData, vector<EditorUIData>* editorData, bool mutable* exit,
+    SDLEventsState mutable* eventsState, bool mutable* flushEvents, vector<string>* paths) {
+  return [uiData, editorData, exit, eventsState, flushEvents, paths] {
+    if (isContentUpdated(paths, editorData))
+      *exit = true;
+    else
+      setPrompt(uiData, "Exit?",
+          [exit] { *exit = true; }.box_as<invoke<void>>(),
+          [eventsState, flushEvents] {
+            *flushEvents = true;
+            discard eventsState->getEvents();
+          }.box_as<invoke<void>>()
+      );
+  }.box_as<UICallback>();
+}
+
+void insertBufferSwitchCallbacks(UIRecord mutable* uiData, int? mutable* nextBuffer, vector<string>* paths,
+    vector<int> mutable* bufferOrder, int mutable* currentBuffer) {
+  if (*nextBuffer) {
+    mutable v = vector<box<any>>();
+    for (i : range(0, paths^.size())) {
+      mutable r = UIRecord();
+      r.insert("text", paths^[bufferOrder^[i]].box_as<any>());
+      if (i == **nextBuffer)
+        r.insert("selected", 1.box_as<any>());
+      v.push_back(move(r).box_as<any>());
+    }
+    uiData^.insert("next_buffer_path", move(v).box_as<any>());
+    uiData^.insert("switch_buffer_callback2", [currentBuffer, bufferOrder, nextBuffer] {
+        *currentBuffer = bufferOrder^[**nextBuffer];
+        bufferOrder^.remove(*bufferOrder^.find(currentBuffer));
+        bufferOrder^.insert(0, *currentBuffer);
+        *nextBuffer = null;
+        }.box_as<UICallback>().box_as<any>());
+    uiData^.insert("switch_buffer_callback_up", [paths, nextBuffer] {
+        *nextBuffer = (**nextBuffer - 1 + paths^.size()) % paths^.size();
+        }.box_as<UICallback>().box_as<any>());
+    uiData^.insert("switch_buffer_callback_down", [paths, nextBuffer] {
+        *nextBuffer = (**nextBuffer + 1) % paths^.size();
+        }.box_as<UICallback>().box_as<any>());
+  } else {
+    uiData^.erase(&"switch_buffer_callback_up");
+    uiData^.erase(&"switch_buffer_callback_down");
+    uiData^.erase(&"switch_buffer_callback2");
+    uiData^.erase(&"next_buffer_path");
+  }
+}
+
 int main(string[] args) {
   const flags = *read_flags<Flags>(args);
   const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
@@ -101,7 +148,9 @@ int main(string[] args) {
   mutable currentBuffer = 0;
   mutable int? nextBuffer = null;
   mutable editorData = vector<EditorUIData>();
+  mutable bufferOrder = vector<int>();
   for (path : paths) {
+    bufferOrder.push_back(path.index);
     editorData.push_back(EditorUIData(
       Buffer(*open_file_r(*path)^.read_content()),
       vec2(0, 0),
@@ -109,24 +158,11 @@ int main(string[] args) {
       null
     ));
   }
-  uiData.insert("exit_callback", [&editorData, &exit, &uiData, &eventsState, &flushEvents, &paths, &uiState] {
-    if (isContentUpdated(&paths, &editorData))
-      exit = true;
-    else
-      setPrompt(&uiData, "Exit?",
-          [&exit] { exit = true; }.box_as<invoke<void>>(),
-          [&eventsState, &flushEvents] {
-            flushEvents = true;
-            discard eventsState.getEvents();
-          }.box_as<invoke<void>>()
-      );
-  }.box_as<UICallback>().box_as<any>());
-  uiData.insert("switch_buffer_callback2", [&] {
-    currentBuffer = *nextBuffer;
-    nextBuffer = null;
-  }.box_as<UICallback>().box_as<any>());
+  uiData.insert("exit_callback", getExitCallback(&uiData, &editorData, &exit, &eventsState, &flushEvents,
+      &paths)
+      .box_as<any>());
   uiData.insert("switch_buffer_callback1", [&] {
-    nextBuffer = (currentBuffer + 1) % editorData.size();
+    nextBuffer = (nextBuffer ?? 0 + 1) % editorData.size();
   }.box_as<UICallback>().box_as<any>());
   uiData.insert("save_callback", [&editorData, &paths] {
     for (elem : editorData)
@@ -135,14 +171,11 @@ int main(string[] args) {
     }
   }.box_as<UICallback>().box_as<any>());
   while (!exit) {
+    insertBufferSwitchCallbacks(&uiData, &nextBuffer, &paths, &bufferOrder, &currentBuffer);
     if (isContentUpdated(&paths, &editorData))
       uiData.insert("no_changes", 1.box_as<any>());
     else
       uiData.erase(&"no_changes");
-    if (nextBuffer)
-      uiData.insert("next_buffer_path", paths[*nextBuffer].box_as<any>());
-    else
-      uiData.erase(&"next_buffer_path");
     uiData.insert("editor", box_as<any>(&editorData[currentBuffer]));
     const curTime = current_time_milli();
     const timeDiff = 0.001 * (curTime - lastUpdate);

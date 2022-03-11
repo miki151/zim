@@ -1,10 +1,11 @@
 
-Def horizontal list HORIZONTAL End
-Def vertical list VERTICAL End
+Def horizontal static_list HORIZONTAL End
+Def vertical static_list VERTICAL End
 
 Def BorderColor 150 150 150 End
 Def SavedColor 100 200 100 End
 Def UnsavedColor 200 100 100 End
+Def FontSize 18 End
 
 {
   using "reload_ui" key_handler(F1 DOWN {})
@@ -18,12 +19,12 @@ Def UnsavedColor 200 100 100 End
     }
     stretch using "editor" {fill(0 0 0) margins(3, editor(
       tabWidth = 2
-      fontSize = 20
+      fontSize = FontSize
       textColor = 255 255 255
       selectionColor = BorderColor
       mouseWheelStep = 4
     ))}
-    using "editor" width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = 20)}
+    using "editor" width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = FontSize)}
     width 5 {
       fill(UnsavedColor)
       using "no_changes" fill(SavedColor)
@@ -40,13 +41,18 @@ Def UnsavedColor 200 100 100 End
       position(CENTER, label("Y/N", 20, 255 255 255))
     })
   }) 
-  using "next_buffer_path" position(CENTER, width 400 height 80 {
+  using "next_buffer_path" position(CENTER, {
     fill(BorderColor)
     frame(1, 255 255 255)
-    position(CENTER, text(20, 255 255 255))
+    margins(1, list {
+      using "selected" fill(255 0 0)
+      using "text" text(20, 255 255 255)
+    })
   })
+  using "switch_buffer_callback_up" key_handler(UP DOWN {LCTRL} )
+  using "switch_buffer_callback_down" key_handler(DOWN DOWN {LCTRL} )
   using "switch_buffer_callback1" key_handler(TAB DOWN {LCTRL} )
-  using "switch_buffer_callback2" key_handler(TAB UP {LCTRL} )
+  using "switch_buffer_callback2" key_handler(LCTRL UP {} )
   using "prompt_callback_yes" key_handler(Y DOWN {} )
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
