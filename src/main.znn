@@ -177,6 +177,8 @@ int main(string[] args) {
     else
       uiData.erase(&"no_changes");
     uiData.insert("editor", box_as<any>(&editorData[currentBuffer]));
+    uiData.insert("buffer_name", (paths[currentBuffer] +
+        " {editorData[currentBuffer].cursor + vec2(1, 1)}").box_as<any>());
     const curTime = current_time_milli();
     const timeDiff = 0.001 * (curTime - lastUpdate);
     lastUpdate = curTime;

@@ -122,13 +122,17 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
     }
     case (TAB) {
       if (data->selectionStart) {
-        data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
-        data->selectionStart = null;
+        data^.buffer.changeIndent(*data->selectionStart, data^.cursor,
+            event^.modifiers.contains(key_event_modifier::LSHIFT) ? -editor^.tabWidth : editor^.tabWidth);
+      } else
+      if (event^.modifiers.contains(key_event_modifier::LSHIFT)) 
+        data^.buffer.changeIndent(data^.cursor, data^.cursor, -editor^.tabWidth);
+      else {
+        mutable tabs = "";
+        for (i : range(0, abs(editor^.tabWidth)))
+          tabs += " ";
+        discard editor->onTextEvent(context, r, tabs);
       }
-      mutable tabs = "";
-      for (i : range(0, editor->tabWidth))
-        tabs += " ";
-      discard editor->onTextEvent(context, r, tabs);
     }
     case (LEFT) {
       const cursor = data->getVisibleCursor(&data^.buffer);

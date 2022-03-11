@@ -3,7 +3,7 @@ Def horizontal static_list HORIZONTAL End
 Def vertical static_list VERTICAL End
 
 Def BorderColor 150 150 150 End
-Def SavedColor 100 200 100 End
+Def SavedColor 100 150 100 End
 Def UnsavedColor 200 100 100 End
 Def FontSize 18 End
 
@@ -12,22 +12,32 @@ Def FontSize 18 End
   using "exit_callback" key_handler(ESCAPE DOWN {})
   using "save_callback" key_handler(S DOWN {LCTRL} )
   fill(BorderColor)
-  horizontal {
-    width 5 {
+  vertical {
+    height 20 {
       fill(UnsavedColor)
       using "no_changes" fill(SavedColor)
+      position(CENTER, using "buffer_name" text(16, 255 255 255))
     }
-    stretch using "editor" {fill(0 0 0) margins(3, editor(
-      tabWidth = 2
-      fontSize = FontSize
-      textColor = 255 255 255
-      selectionColor = BorderColor
-      mouseWheelStep = 4
-    ))}
-    using "editor" width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = FontSize)}
-    width 5 {
-      fill(UnsavedColor)
-      using "no_changes" fill(SavedColor)
+    stretch horizontal {
+      width 0 {
+        fill(UnsavedColor)
+        using "no_changes" fill(SavedColor)
+      }
+      stretch {
+        fill(0 0 0)
+        margins(3, using "editor" editor(
+          tabWidth = 2
+          fontSize = FontSize
+          textColor = 255 255 255
+          selectionColor = BorderColor
+          mouseWheelStep = 4
+        ))
+      }
+      using "editor" width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = FontSize)}
+      width 0 {
+        fill(UnsavedColor)
+        using "no_changes" fill(SavedColor)
+      }
     }
   }
   using "prompt_text" key_handler(null)

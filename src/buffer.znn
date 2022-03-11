@@ -1,6 +1,7 @@
 
 export import "std/vector.znn";
 export import "vec2.znn";
+import "std/math.znn";
 
 export struct HistoryElem {
   vector<string> text;
@@ -38,6 +39,23 @@ export string joinLines(Buffer* buffer) {
     ret += *it;
   }
   return move(ret);
+}
+
+export void changeIndent(Buffer mutable* buf, mutable vec2 start, mutable vec2 end, int amount) {
+  if (end.y < start.y)
+    swap(&start, &end);
+  if (end.y > start.y && end.x == 0)
+    --end.y;
+  mutable tabs = "";
+  for (i : range(0, abs(amount)))
+    tabs += " ";
+  if (amount > 0) {
+    for (i : range(start.y, end.y + 1))
+      buf^.text[i] = tabs + buf^.text[i];
+  } else
+    for (i : range(start.y, end.y + 1))
+      if (buf^.text[i].substring(0, -amount) == tabs)
+        buf^.text[i] = buf^.text[i].substring(-amount, buf^.text[i].size() + amount);
 }
 
 
