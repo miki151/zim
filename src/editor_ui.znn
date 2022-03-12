@@ -15,6 +15,7 @@ struct EditorUI {
 export struct EditorUIState {
   bool mouseSelection;
   string? searchedText;
+  int? searchedLine;
 };
 
 export struct EditorUIData {
@@ -31,7 +32,7 @@ vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
 }
 
 export EditorUIState() {
-  return EditorUIState::EditorUIState(false, null);
+  return EditorUIState::EditorUIState(false, null, null);
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
@@ -58,6 +59,13 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
 void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const state = context.state^.get_state<EditorUIState>();
+  if (state->searchedLine) {
+    const line = min(max(0, *state->searchedLine - 1), data^.buffer.text.size() - 1);
+    data^.cursor = vec2(0, line);
+    if ((line - data->scrollPos) * textSize.y > r->height() || line < data->scrollPos)
+      data->scrollPos = max(0, line - r->height() / (2 * textSize.y));
+    state->searchedLine = null;
+  } else
   if (state->searchedText) {
     for (lineIndex = 0; lineIndex < data^.buffer.text.size(); ++lineIndex) {
       const line = (lineIndex + data^.cursor.y) % data^.buffer.text.size();

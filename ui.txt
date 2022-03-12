@@ -78,4 +78,5 @@ Def FontSize 18 End
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
   using "search_callback" key_handler(F DOWN {LCTRL} )
   using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
+  using "line_search_callback" key_handler(K DOWN {LCTRL} )
 }

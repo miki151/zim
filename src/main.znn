@@ -126,12 +126,17 @@ void insertBufferSwitchCallbacks(UIRecord mutable* uiData, int? mutable* nextBuf
   }
 }
 
-void insertSearchCallbacks(UIRecord mutable* uiData, string? mutable* searchEntry,
+void insertSearchCallbacks(UIRecord mutable* uiData, string? mutable* searchEntry, bool mutable* lineSearch,
     string? mutable* lastSearchedText, UIState mutable* uiState) {
   if (*searchEntry) {
-    uiData^.insert("search_confirm", [searchEntry, uiState, lastSearchedText]() {
-      *lastSearchedText = *searchEntry;
-      uiState^.get_state<EditorUIState>()->searchedText = *searchEntry;
+    uiData^.insert("search_confirm", [searchEntry, uiState, lastSearchedText, lineSearch]() {
+      if (*lineSearch) {
+        if (const n = searchEntry^^.to_int())
+          uiState^.get_state<EditorUIState>()->searchedLine = n;
+      } else {
+        *lastSearchedText = *searchEntry;
+        uiState^.get_state<EditorUIState>()->searchedText = *searchEntry;
+      }
       *searchEntry = null;
     }.box_as<UICallback>().box_as<any>());
     uiData^.insert("search_entry", [searchEntry](string text) {
@@ -184,6 +189,7 @@ int main(string[] args) {
   }
   mutable string? lastSearchedText = null;
   mutable string? searchEntry = null;
+  mutable bool lineSearch = false;
   uiData.insert("exit_callback", getExitCallback(&uiData, &editorData, &exit, &eventsState, &flushEvents, &paths,
       &searchEntry)
       .box_as<any>());
@@ -199,13 +205,17 @@ int main(string[] args) {
   uiData.insert("search_callback", [&searchEntry] {
       searchEntry = "";
   }.box_as<UICallback>().box_as<any>());
+  uiData.insert("line_search_callback", [&searchEntry, &lineSearch] {
+      searchEntry = "";
+      lineSearch = true;
+  }.box_as<UICallback>().box_as<any>());
   uiData.insert("search_repeat_callback", [&uiState, &lastSearchedText] {
     if (lastSearchedText)
       uiState.get_state<EditorUIState>()->searchedText = *lastSearchedText;
   }.box_as<UICallback>().box_as<any>());
   while (!exit) {
     insertBufferSwitchCallbacks(&uiData, &nextBuffer, &paths, &bufferOrder, &currentBuffer);
-    insertSearchCallbacks(&uiData, &searchEntry, &lastSearchedText, &uiState);
+    insertSearchCallbacks(&uiData, &searchEntry, &lineSearch, &lastSearchedText, &uiState);
     if (isContentUpdated(&paths, &editorData))
       uiData.insert("no_changes", 1.box_as<any>());
     else
