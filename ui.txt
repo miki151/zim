@@ -59,6 +59,16 @@ Def FontSize 18 End
       using "text" text(20, 255 255 255)
     })
   })
+  using "search_content" position(BOTTOM_RIGHT, width 400 height 50 {
+    fill(BorderColor)
+    frame(1, 255 255 255)
+    position(CENTER, width 350 height 34 {
+      fill(0 0 0)
+      margins(2, text(20, 255 255 255))
+    })
+  })
+  using "search_entry" text_handler()
+  using "search_confirm" key_handler(ENTER DOWN {} )
   using "switch_buffer_callback_up" key_handler(UP DOWN {LCTRL} )
   using "switch_buffer_callback_down" key_handler(DOWN DOWN {LCTRL} )
   using "switch_buffer_callback1" key_handler(TAB DOWN {LCTRL} )
@@ -66,4 +76,6 @@ Def FontSize 18 End
   using "prompt_callback_yes" key_handler(Y DOWN {} )
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
+  using "search_callback" key_handler(F DOWN {LCTRL} )
+  using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
 }

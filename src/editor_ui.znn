@@ -14,6 +14,7 @@ struct EditorUI {
 
 export struct EditorUIState {
   bool mouseSelection;
+  string? searchedText;
 };
 
 export struct EditorUIData {
@@ -30,7 +31,7 @@ vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
 }
 
 export EditorUIState() {
-  return EditorUIState::EditorUIState(false);
+  return EditorUIState::EditorUIState(false, null);
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
@@ -54,9 +55,28 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
   }
 }
 
+void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
+  const data = **context.data^.cast_to<EditorUIData mutable*>();
+  const state = context.state^.get_state<EditorUIState>();
+  if (state->searchedText) {
+    for (lineIndex = 0; lineIndex < data^.buffer.text.size(); ++lineIndex) {
+      const line = (lineIndex + data^.cursor.y) % data^.buffer.text.size();
+      const beginPos = lineIndex == 0 ? data^.cursor.x + 1 : 0;
+      if (const index = data^.buffer.text[line].find(beginPos, &*state->searchedText)) {
+        data^.cursor = vec2(*index, line);
+        if ((line - data->scrollPos) * textSize.y > r->height() || line < data->scrollPos)
+          data->scrollPos = max(0, line - r->height() / (2 * textSize.y));
+        state->searchedText = null;
+        break;
+      }
+    }
+  }
+}
+
 export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+  scrollToSearchedText(context, r, textSize);
   while (data^.scrollPos > 0 && r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos) < r^.v2.y)
     --data->scrollPos;
   renderSelection(editor, context, r, textSize);

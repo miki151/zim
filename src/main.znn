@@ -74,8 +74,13 @@ bool isContentUpdated(vector<string>* paths, vector<EditorUIData>* data) {
 }
 
 box<UICallback> getExitCallback(UIRecord mutable* uiData, vector<EditorUIData>* editorData, bool mutable* exit,
-    SDLEventsState mutable* eventsState, bool mutable* flushEvents, vector<string>* paths) {
-  return [uiData, editorData, exit, eventsState, flushEvents, paths] {
+    SDLEventsState mutable* eventsState, bool mutable* flushEvents, vector<string>* paths,
+    string? mutable* searchEntry) {
+  return [uiData, editorData, exit, eventsState, flushEvents, paths, searchEntry] {
+    if (*searchEntry) {
+      *searchEntry = null;
+      return;
+    }
     if (isContentUpdated(paths, editorData))
       *exit = true;
     else
@@ -121,6 +126,25 @@ void insertBufferSwitchCallbacks(UIRecord mutable* uiData, int? mutable* nextBuf
   }
 }
 
+void insertSearchCallbacks(UIRecord mutable* uiData, string? mutable* searchEntry,
+    string? mutable* lastSearchedText, UIState mutable* uiState) {
+  if (*searchEntry) {
+    uiData^.insert("search_confirm", [searchEntry, uiState, lastSearchedText]() {
+      *lastSearchedText = *searchEntry;
+      uiState^.get_state<EditorUIState>()->searchedText = *searchEntry;
+      *searchEntry = null;
+    }.box_as<UICallback>().box_as<any>());
+    uiData^.insert("search_entry", [searchEntry](string text) {
+      **searchEntry += text;
+    }.box_as<UITextCallback>().box_as<any>());
+    uiData^.insert("search_content", box_as<any>(**searchEntry));
+  } else {
+    uiData^.erase(&"search_entry");
+    uiData^.erase(&"search_confirm");
+    uiData^.erase(&"search_content");
+  }
+}
+
 int main(string[] args) {
   const flags = *read_flags<Flags>(args);
   const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
@@ -158,8 +182,10 @@ int main(string[] args) {
       null
     ));
   }
-  uiData.insert("exit_callback", getExitCallback(&uiData, &editorData, &exit, &eventsState, &flushEvents,
-      &paths)
+  mutable string? lastSearchedText = null;
+  mutable string? searchEntry = null;
+  uiData.insert("exit_callback", getExitCallback(&uiData, &editorData, &exit, &eventsState, &flushEvents, &paths,
+      &searchEntry)
       .box_as<any>());
   uiData.insert("switch_buffer_callback1", [&] {
     nextBuffer = (nextBuffer ?? 0 + 1) % editorData.size();
@@ -170,8 +196,16 @@ int main(string[] args) {
         file->printf(elem->buffer.joinLines());
     }
   }.box_as<UICallback>().box_as<any>());
+  uiData.insert("search_callback", [&searchEntry] {
+      searchEntry = "";
+  }.box_as<UICallback>().box_as<any>());
+  uiData.insert("search_repeat_callback", [&uiState, &lastSearchedText] {
+    if (lastSearchedText)
+      uiState.get_state<EditorUIState>()->searchedText = *lastSearchedText;
+  }.box_as<UICallback>().box_as<any>());
   while (!exit) {
     insertBufferSwitchCallbacks(&uiData, &nextBuffer, &paths, &bufferOrder, &currentBuffer);
+    insertSearchCallbacks(&uiData, &searchEntry, &lastSearchedText, &uiState);
     if (isContentUpdated(&paths, &editorData))
       uiData.insert("no_changes", 1.box_as<any>());
     else
