@@ -130,8 +130,12 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       if (data->selectionStart) {
         data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
         data->selectionStart = null;
-      } else
-        data->cursor = data^.buffer.onDelete(data->getVisibleCursor(&data^.buffer));
+      } else {
+        if (lctrl)
+          data->cursor = data^.buffer.onDeleteLine(data->getVisibleCursor(&data^.buffer));
+        else
+          data->cursor = data^.buffer.onDelete(data->getVisibleCursor(&data^.buffer));
+      }
     }
     case (HOME) {
       data->cursor.x = 0;

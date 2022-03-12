@@ -157,3 +157,10 @@ export vec2 onDelete(Buffer mutable* buf, vec2 pos) {
   }
   return pos;
 }
+
+export vec2 onDeleteLine(Buffer mutable* buf, vec2 pos) {
+  const newPos = pos.y == buf->text.size() - 1 ? pos - vec2(0, 1) : pos;
+  buf->addHistory(buf->text.copy(), pos, newPos);
+  buf->text.remove(pos.y);
+  return newPos;
+}
