@@ -3,6 +3,7 @@ import "std/vector.znn";
 import "std/io.znn";
 export import "buffer.znn";
 import "std/char.znn";
+import "std/time.znn";
 
 export [@ui_element]
 struct EditorUI {
@@ -17,6 +18,8 @@ export struct EditorUIState {
   bool mouseSelection;
   string? searchedText;
   int? searchedLine;
+  milliseconds_t lastLeftClick;
+  milliseconds_t previousLeftClick;
 };
 
 export struct EditorUIData {
@@ -33,7 +36,7 @@ vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
 }
 
 export EditorUIState() {
-  return EditorUIState::EditorUIState(false, null, null);
+  return EditorUIState::EditorUIState(false, null, null, 0, 0);
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
@@ -86,7 +89,8 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
   scrollToSearchedText(context, r, textSize);
-  while (data^.scrollPos > 0 && r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos) < r^.v2.y)
+  while (data^.scrollPos > 0 &&
+      r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos) < r^.v2.y)
     --data->scrollPos;
   renderSelection(editor, context, r, textSize);
   for (line : range(data->scrollPos, data^.buffer.text.size())) {
@@ -284,11 +288,34 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
     }
     case (LEFT) {
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+      const curTime = current_time_milli();
       data->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
       data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
       data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
-      data->selectionStart = data->cursor;
-      state->mouseSelection = true;
+      if (curTime - state->previousLeftClick < 500) {
+        data->selectionStart = vec2(0, data->cursor.y);
+        if (data->cursor.y < data->buffer.text.size() - 1)
+          data->cursor = vec2(0, data->cursor.y + 1);
+        else
+          data->cursor = vec2(data->buffer.text[data->cursor.y].size(), data->cursor.y);
+      } else
+      if (curTime - state->lastLeftClick < 500) {
+        const status = isalnum(data->buffer.text[data->cursor.y][data->cursor.x]);
+        mutable start = data->cursor;
+        while (start.x > 0 && isalnum(data->buffer.text[start.y][start.x - 1]) == status)
+          --start.x;
+        mutable end = data->cursor;
+        while (end.x < data->buffer.text[end.y].size() -1 &&
+          isalnum(data->buffer.text[end.y][end.x]) == status)
+          ++end.x;
+        data->selectionStart = start;
+        data->cursor = end;
+      } else {
+        data->selectionStart = data->cursor;
+        state->mouseSelection = true;
+      }
+      state->previousLeftClick = state->lastLeftClick;
+      state->lastLeftClick = curTime;
       return true;
     }
     case (WHEEL_UP) {
