@@ -2,6 +2,7 @@ export import "ui.znn";
 import "std/vector.znn";
 import "std/io.znn";
 export import "buffer.znn";
+import "std/char.znn";
 
 export [@ui_element]
 struct EditorUI {
@@ -103,10 +104,12 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   if (event^.type != key_event_type::DOWN)
     return false;
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+  const lctrl = event^.modifiers.contains(key_event_modifier::LCTRL);
+  const lshift = event^.modifiers.contains(key_event_modifier::LSHIFT);
   if (event^.key == key_type::UP || event^.key == key_type::DOWN || event^.key == key_type::LEFT
       || event^.key == key_type::RIGHT || event^.key == key_type::PAGE_UP || event^.key == key_type::PAGE_DOWN
       || event^.key == key_type::HOME || event^.key == key_type::END) {
-    if (event->modifiers.contains(key_event_modifier::LSHIFT)) {
+    if (lshift) {
       if (!data->selectionStart)
         data->selectionStart = data->getVisibleCursor(&data^.buffer);
     } else
@@ -151,9 +154,9 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
     case (TAB) {
       if (data->selectionStart) {
         data^.buffer.changeIndent(*data->selectionStart, data^.cursor,
-            event^.modifiers.contains(key_event_modifier::LSHIFT) ? -editor^.tabWidth : editor^.tabWidth);
+            lshift ? -editor^.tabWidth : editor^.tabWidth);
       } else
-      if (event^.modifiers.contains(key_event_modifier::LSHIFT)) 
+      if (lshift) 
         data^.buffer.changeIndent(data^.cursor, data^.cursor, -editor^.tabWidth);
       else {
         mutable tabs = "";
@@ -169,8 +172,15 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           --data->cursor.y;
           data->cursor.x = data^.buffer.text[data->cursor.y].size();
         }
-      } else
+      } else {
         data->cursor.x = cursor.x - 1;
+        if (lctrl) {
+          const state = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]);
+          while (data^.cursor.x > 0 && 
+              isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]) == state)
+            --data^.cursor.x;
+        }
+      }
     }
     case (RIGHT) {
       if (data->cursor.x >= data^.buffer.text[data->cursor.y].size()) {
@@ -178,18 +188,25 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           ++data->cursor.y;
           data->cursor.x = 0;
         }
-      } else
+      } else {
         ++data->cursor.x;
+        if (lctrl) {
+          const state = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]);
+          while (data^.cursor.x < data^.buffer.text[data^.cursor.y].size() && 
+              isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]) == state)
+            ++data^.cursor.x;
+        }
+      }
     }
     case (C) {
-      if (event^.modifiers.contains(key_event_modifier::LCTRL) && !!data->selectionStart) {
+      if (lctrl && !!data->selectionStart) {
         context.canvas->setClipboard(data^.buffer.getString(*data->selectionStart, data->getVisibleCursor(&data^.buffer)));
         return true;
       }
       return false;
     }
     case (X) {
-      if (event^.modifiers.contains(key_event_modifier::LCTRL) && !!data->selectionStart) {
+      if (lctrl && !!data->selectionStart) {
         context.canvas->setClipboard(data^.buffer.getString(*data->selectionStart, data->getVisibleCursor(&data^.buffer)));
         data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
         return true;
@@ -197,7 +214,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       return false;
     }
     case (V) {
-      if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
+      if (lctrl) {
         const lines = breakLines(context.canvas->getClipboard());
         for (it : lines) {
           discard editor->onTextEvent(context, r, *it);
@@ -209,7 +226,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       return false;
     }
     case (Z) {
-      if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
+      if (lctrl) {
         if (const pos = data^.buffer.undo(data->getVisibleCursor(&data^.buffer)))
           data->cursor = *pos;
         return true;
@@ -217,7 +234,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       return false;
     }
     case (Y) {
-      if (event^.modifiers.contains(key_event_modifier::LCTRL)) {
+      if (lctrl) {
         if (const pos = data^.buffer.redo(data->getVisibleCursor(&data^.buffer)))
           data->cursor = *pos;
         return true;
