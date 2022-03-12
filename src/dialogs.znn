@@ -1,0 +1,23 @@
+
+
+embed {
+#include "tinyfiledialogs.h"
+#include "tinyfiledialogs.c"
+}
+
+export import "std/vector.znn";
+
+export vector<string> getOpenFiles(string title) {
+  embed_returns {
+    auto result = tinyfd_openFileDialog(title.data(), nullptr, 0, nullptr, nullptr, 1);
+    if (!result)
+      return {};
+    vector<zenon_string> ret{zenon_string::reference("")};
+    for (auto c = result; *c != '\0'; ++c)
+      if (*c == '|')
+        ret.push_back(zenon_string::reference(""));
+      else
+        ret.back() = ret.back() + *c;
+    return ret;
+  }
+}

@@ -79,4 +79,5 @@ Def FontSize 18 End
   using "search_callback" key_handler(F DOWN {LCTRL} )
   using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
   using "line_search_callback" key_handler(K DOWN {LCTRL} )
+  using "open_file_callback" key_handler(O DOWN {LCTRL} )
 }

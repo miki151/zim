@@ -16,6 +16,7 @@ import "editor_ui.znn";
 import "std/vector.znn";
 import "sdl_event.znn";
 import "scrollbar_ui.znn";
+import "dialogs.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
@@ -150,14 +151,34 @@ void insertSearchCallbacks(UIRecord mutable* uiData, string? mutable* searchEntr
   }
 }
 
+box<UICallback> getOpenFileCallback(vector<string> mutable* paths, vector<int> mutable* bufferOrder,
+    vector<EditorUIData> mutable* editorData, vector<box<invoke<void>>> mutable* toDo, int mutable* currentBuffer) {
+  return [paths, bufferOrder, editorData, toDo, currentBuffer] {
+    toDo^.push_back([paths, bufferOrder, editorData, toDo, currentBuffer] {
+      for (file : getOpenFiles("Open file(s):")) {
+        if (!paths^.find(&*file)) {
+          paths^.push_back(*file);
+          bufferOrder^.insert(0, paths^.size() - 1);
+          editorData^.push_back(EditorUIData(
+            Buffer(*open_file_r(*file)^.read_content()),
+            vec2(0, 0),
+            0,
+            null
+          ));
+          *currentBuffer = editorData^.size() - 1;
+        }
+      }
+    }.box_as<invoke<void>>());
+  }.box_as<UICallback>();
+}
+
 int main(string[] args) {
   const flags = *read_flags<Flags>(args);
   const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
   if (!flags.noPanicHandler)
     set_panic_handler(&panic_handler);
   *sdl_init();
-  const paths = flags.all.copy();
-  mutable curPath = paths[0];
+  mutable paths = flags.all.transform([](string* path) { return get_canonical_path(*path); });
   mutable ui = *readUIFrom("ui.txt");
   const window = *sdl_create_window(vec2(1280, 720), "ZIM");
   mutable font = *window.loadSDLFont(flags.font ?? "font.ttf", 10, 100);
@@ -202,6 +223,9 @@ int main(string[] args) {
         file->printf(elem->buffer.joinLines());
     }
   }.box_as<UICallback>().box_as<any>());
+  mutable toDo = vector<box<invoke<void>>>();
+  uiData.insert("open_file_callback",
+      getOpenFileCallback(&paths, &bufferOrder, &editorData, &toDo, &currentBuffer).box_as<any>());
   uiData.insert("search_callback", [&searchEntry] {
       searchEntry = "";
   }.box_as<UICallback>().box_as<any>());
@@ -214,6 +238,10 @@ int main(string[] args) {
       uiState.get_state<EditorUIState>()->searchedText = *lastSearchedText;
   }.box_as<UICallback>().box_as<any>());
   while (!exit) {
+    while (!toDo.empty()) {
+      toDo.back()^^();
+      discard toDo.pop_back();
+    }
     insertBufferSwitchCallbacks(&uiData, &nextBuffer, &paths, &bufferOrder, &currentBuffer);
     insertSearchCallbacks(&uiData, &searchEntry, &lineSearch, &lastSearchedText, &uiState);
     if (isContentUpdated(&paths, &editorData))
