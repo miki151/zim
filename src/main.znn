@@ -120,16 +120,13 @@ void addPermanentCallbacks(AllState mutable* allState) {
       allState^.searchEntry = null;
       return;
     }
-    if (isContentUpdated(&allState^.editorData))
-      allState^.exit = true;
-    else
-      setPrompt(&allState^.uiData, "Exit?",
-          [allState] { allState^.exit = true; }.box_as<invoke<void>>(),
-          [allState] {
-            allState^.flushEvents = true;
-            discard allState^.eventsState.getEvents();
-          }.box_as<invoke<void>>()
-      );
+    setPrompt(&allState^.uiData, "Exit?",
+        [allState] { allState^.exit = true; }.box_as<invoke<void>>(),
+        [allState] {
+          allState^.flushEvents = true;
+          discard allState^.eventsState.getEvents();
+        }.box_as<invoke<void>>()
+    );
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("open_file_callback", [allState] {
     allState^.toDo.push_back([allState] {
