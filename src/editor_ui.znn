@@ -209,8 +209,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
     case (C) {
       if (lctrl && !!data->selectionStart) {
         context.canvas->setClipboard(data^.buffer.getString(*data->selectionStart, data->getVisibleCursor(&data^.buffer)));
-        return true;
-      }
+      } else
       return false;
     }
     case (X) {
@@ -218,9 +217,8 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         context.canvas->setClipboard(data^.buffer.getString(*data->selectionStart, data->getVisibleCursor(&data^.buffer)));
         data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
         data^.selectionStart = null;
-        return true;
-      }
-      return false;
+      } else
+        return false;
     }
     case (V) {
       if (lctrl) {
@@ -230,25 +228,22 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           if (it.index < lines.size() - 1)
             data->cursor = data^.buffer.onEnter(data->getVisibleCursor(&data^.buffer));
         }
-        return true;
-      }
-      return false;
+      } else
+        return false;
     }
     case (Z) {
       if (lctrl) {
         if (const pos = data^.buffer.undo(data->getVisibleCursor(&data^.buffer)))
           data->cursor = *pos;
-        return true;
-      }
-      return false;
+      } else
+        return false;
     }
     case (Y) {
       if (lctrl) {
         if (const pos = data^.buffer.redo(data->getVisibleCursor(&data^.buffer)))
           data->cursor = *pos;
-        return true;
-      }
-      return false;
+      } else
+        return false;
     }
     default {
       return false;
