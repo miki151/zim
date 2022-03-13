@@ -155,7 +155,8 @@ void addPermanentCallbacks(AllState mutable* allState) {
     for (elem : allState^.editorData)
       if (const file = open_file_w(allState^.paths[elem.index])) {
         file->printf(elem->buffer.joinLines());
-    }
+        elem->buffer.origText = elem->buffer.text.copy();
+      }
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("search_callback", [allState] {
       allState^.searchEntry = "";
