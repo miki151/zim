@@ -64,7 +64,7 @@ Def FontSize 18 End
     frame(1, 255 255 255)
     position(CENTER, width 350 height 34 {
       fill(0 0 0)
-      margins(2, text(20, 255 255 255))
+      margins(2, horizontal { text(20, 255 255 255) width 1 frame(1, 255 255 255)})
     })
   })
   using "search_entry" text_handler()

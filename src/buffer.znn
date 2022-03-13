@@ -11,14 +11,20 @@ export struct HistoryElem {
 
 export struct Buffer {
   vector<string> text;
+  vector<string> origText;
   vector<HistoryElem> history;
   vector<HistoryElem> forward;
 };
 
 export Buffer(string content) {
-  return Buffer::Buffer(breakLines(move(content)),
+  const lines = breakLines(move(content));
+  return Buffer::Buffer(lines.copy(), lines.copy(),
       vector<HistoryElem>(),
       vector<HistoryElem>());
+}
+
+export bool isModified(Buffer* buffer) {
+  return buffer^.text != buffer^.origText;
 }
 
 export vector<string> breakLines(string content) {

@@ -67,9 +67,9 @@ void setPrompt(UIRecord mutable* uiData, string question, box<invoke<void>> call
   uiData->insert("prompt_text", question.box_as<any>());
 }
 
-bool isContentUpdated(vector<string>* paths, vector<EditorUIData>* data) {
-  for (path : *paths)
-    if (*open_file_r(*path)^.read_content() != data^[path.index].buffer.joinLines())
+bool isContentUpdated(vector<EditorUIData>* data) {
+  for (elem : *data)
+    if (elem^.buffer.isModified())
       return false;
   return true;
 }
@@ -120,7 +120,7 @@ void addPermanentCallbacks(AllState mutable* allState) {
       allState^.searchEntry = null;
       return;
     }
-    if (isContentUpdated(&allState^.paths, &allState^.editorData))
+    if (isContentUpdated(&allState^.editorData))
       allState^.exit = true;
     else
       setPrompt(&allState^.uiData, "Exit?",
@@ -200,7 +200,7 @@ void addConditionalCallbacks(AllState mutable* allState) {
     allState^.uiData.erase(&"switch_buffer_callback2");
     allState^.uiData.erase(&"next_buffer_path");
   }
-  if (isContentUpdated(&allState^.paths, &allState^.editorData))
+  if (isContentUpdated(&allState^.editorData))
     allState^.uiData.insert("no_changes", 1.box_as<any>());
   else
     allState^.uiData.erase(&"no_changes");
