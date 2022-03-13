@@ -217,6 +217,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       if (lctrl && !!data->selectionStart) {
         context.canvas->setClipboard(data^.buffer.getString(*data->selectionStart, data->getVisibleCursor(&data^.buffer)));
         data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
+        data^.selectionStart = null;
         return true;
       }
       return false;
