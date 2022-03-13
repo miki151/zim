@@ -128,8 +128,11 @@ void insertBufferSwitchCallbacks(UIRecord mutable* uiData, int? mutable* nextBuf
 }
 
 void insertSearchCallbacks(UIRecord mutable* uiData, string? mutable* searchEntry, bool mutable* lineSearch,
-    string? mutable* lastSearchedText, UIState mutable* uiState) {
+    string? mutable* lastSearchedText, UIState mutable* uiState, SDLCanvas* canvas) {
   if (*searchEntry) {
+    uiData^.insert("search_paste_callback", [searchEntry, canvas] {
+      *searchEntry = **searchEntry + canvas->getClipboard();
+    }.box_as<UICallback>().box_as<any>());
     uiData^.insert("search_confirm", [searchEntry, uiState, lastSearchedText, lineSearch]() {
       if (*lineSearch) {
         if (const n = searchEntry^^.to_int())
@@ -140,14 +143,23 @@ void insertSearchCallbacks(UIRecord mutable* uiData, string? mutable* searchEntr
       }
       *searchEntry = null;
     }.box_as<UICallback>().box_as<any>());
-    uiData^.insert("search_entry", [searchEntry](string text) {
-      **searchEntry += text;
+    uiData^.insert("search_entry", [searchEntry](TextCallbackParam param) {
+      switch (param) {
+        case (text) {
+          **searchEntry += text;
+        }
+        case (backspace) {
+          if (!searchEntry^^.empty())
+            *searchEntry = searchEntry^^.substring(0, searchEntry^^.size() - 1);
+        }
+      }
     }.box_as<UITextCallback>().box_as<any>());
     uiData^.insert("search_content", box_as<any>(**searchEntry));
   } else {
     uiData^.erase(&"search_entry");
     uiData^.erase(&"search_confirm");
     uiData^.erase(&"search_content");
+    uiData^.erase(&"search_paste_callback");
   }
 }
 
@@ -243,7 +255,7 @@ int main(string[] args) {
       discard toDo.pop_back();
     }
     insertBufferSwitchCallbacks(&uiData, &nextBuffer, &paths, &bufferOrder, &currentBuffer);
-    insertSearchCallbacks(&uiData, &searchEntry, &lineSearch, &lastSearchedText, &uiState);
+    insertSearchCallbacks(&uiData, &searchEntry, &lineSearch, &lastSearchedText, &uiState, &canvas);
     if (isContentUpdated(&paths, &editorData))
       uiData.insert("no_changes", 1.box_as<any>());
     else
