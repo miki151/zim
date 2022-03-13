@@ -110,8 +110,8 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
   const lctrl = event^.modifiers.contains(key_event_modifier::LCTRL);
   const lshift = event^.modifiers.contains(key_event_modifier::LSHIFT);
-  if (event^.key == key_type::UP || event^.key == key_type::DOWN || event^.key == key_type::LEFT
-      || event^.key == key_type::RIGHT || event^.key == key_type::PAGE_UP || event^.key == key_type::PAGE_DOWN
+  if (event^.key == key_type::UP || event^.key == key_type::DOWN
+      || event^.key == key_type::PAGE_UP || event^.key == key_type::PAGE_DOWN
       || event^.key == key_type::HOME || event^.key == key_type::END) {
     if (lshift) {
       if (!data->selectionStart)
@@ -174,7 +174,16 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       }
     }
     case (LEFT) {
+      if (lshift)
+        if (!data->selectionStart)
+          data->selectionStart = data->getVisibleCursor(&data^.buffer);
       const cursor = data->getVisibleCursor(&data^.buffer);
+      if (!lshift && !!data^.selectionStart) {
+        if (data^.selectionStart^.y < cursor.y ||
+            (data^.selectionStart^.y == cursor.y && data^.selectionStart^.x < cursor.x))
+          data^.cursor = *data^.selectionStart;
+        data^.selectionStart = null;
+      } else
       if (cursor.x == 0) {
         if (cursor.y > 0) {
           --data->cursor.y;
@@ -191,6 +200,16 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       }
     }
     case (RIGHT) {
+      if (lshift)
+        if (!data->selectionStart)
+          data->selectionStart = data->getVisibleCursor(&data^.buffer);
+      const cursor = data->getVisibleCursor(&data^.buffer);
+      if (!lshift && !!data^.selectionStart) {
+        if (data^.selectionStart^.y > cursor.y ||
+            (data^.selectionStart^.y == cursor.y && data^.selectionStart^.x > cursor.x))
+          data^.cursor = *data^.selectionStart;
+        data^.selectionStart = null;
+      } else
       if (data->cursor.x >= data^.buffer.text[data->cursor.y].size()) {
         if (data->cursor.y < data^.buffer.text.size() - 1) {
           ++data->cursor.y;
