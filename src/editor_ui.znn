@@ -75,7 +75,8 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
       const line = (lineIndex + data^.cursor.y) % data^.buffer.text.size();
       const beginPos = lineIndex == 0 ? data^.cursor.x + 1 : 0;
       if (const index = data^.buffer.text[line].find(beginPos, &*state->searchedText)) {
-        data^.cursor = vec2(*index, line);
+        data^.selectionStart = vec2(*index, line);
+        data^.cursor = vec2(*index + state->searchedText^.size(), line);
         if ((line - data->scrollPos) * textSize.y > r->height() || line < data->scrollPos)
           data->scrollPos = max(0, line - r->height() / (2 * textSize.y));
         state->searchedText = null;
