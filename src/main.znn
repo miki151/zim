@@ -74,6 +74,33 @@ bool isContentUpdated(vector<EditorUIData>* data) {
   return true;
 }
 
+struct LocationResult {
+  string text;
+  int line;
+  int bufferIndex;
+};
+
+enum SearchType {
+  LOCAL,
+  GLOBAL,
+  LINE
+};
+
+struct SearchInfo {
+  string entry;
+  SearchType type;
+};
+
+struct LocationIndex {
+  int scrollPos;
+  int pos;
+};
+
+union OverlayInfo {
+  SearchInfo search;
+  LocationIndex location;
+};
+
 struct AllState {
   SDLCanvas canvas;
   rectangle uiBounds;
@@ -88,9 +115,9 @@ struct AllState {
   vector<int> bufferOrder;
   vector<string> paths;
   string? lastSearchedText;
-  string? searchEntry;
-  bool lineSearch;
+  OverlayInfo? overlayInfo;
   vector<box<invoke<void>>> toDo;
+  vector<LocationResult> locationResults;
 };
 
 AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths) {
@@ -108,25 +135,25 @@ AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths) {
     .bufferOrder = vector<int>(),
     .paths = move(paths),
     .lastSearchedText = null,
-    .searchEntry = null,
-    .lineSearch = false,
-    .toDo = vector<box<invoke<void>>>()
+    .overlayInfo = null,
+    .toDo = vector<box<invoke<void>>>(),
+    .locationResults = vector<LocationResult>(),
   );
 }
 
 void addPermanentCallbacks(AllState mutable* allState) {
   allState^.uiData.insert("exit_callback", [allState] {
-    if (allState^.searchEntry) {
-      allState^.searchEntry = null;
+    if (allState^.overlayInfo) {
+      allState^.overlayInfo = null;
       return;
-    }
-    setPrompt(&allState^.uiData, "Exit?",
-        [allState] { allState^.exit = true; }.box_as<invoke<void>>(),
-        [allState] {
-          allState^.flushEvents = true;
-          discard allState^.eventsState.getEvents();
-        }.box_as<invoke<void>>()
-    );
+    } else
+      setPrompt(&allState^.uiData, "Exit?",
+          [allState] { allState^.exit = true; }.box_as<invoke<void>>(),
+          [allState] {
+            allState^.flushEvents = true;
+            discard allState^.eventsState.getEvents();
+          }.box_as<invoke<void>>()
+      );
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("open_file_callback", [allState] {
     allState^.toDo.push_back([allState] {
@@ -156,11 +183,16 @@ void addPermanentCallbacks(AllState mutable* allState) {
       }
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("search_callback", [allState] {
-      allState^.searchEntry = "";
+    allState^.overlayInfo = OverlayInfo::search(SearchInfo("", SearchType::LOCAL));
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("line_search_callback", [allState] {
-      allState^.searchEntry = "";
-      allState^.lineSearch = true;
+    allState^.overlayInfo = OverlayInfo::search(SearchInfo("", SearchType::LINE));
+  }.box_as<UICallback>().box_as<any>());
+  allState^.uiData.insert("location_search_callback", [allState] {
+    if (!allState^.overlayInfo && !allState^.locationResults.empty())
+      allState^.overlayInfo = OverlayInfo::location(LocationIndex(0, 0));
+    else
+      allState^.overlayInfo = OverlayInfo::search(SearchInfo("", SearchType::GLOBAL));
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("search_repeat_callback", [allState] {
     const state = allState^.uiState.get_state<EditorUIState>();
@@ -176,7 +208,115 @@ void addPermanentCallbacks(AllState mutable* allState) {
   }.box_as<UICallback>().box_as<any>());
 }
 
+void doLocationSearch(AllState mutable* allState) {
+  const text = allState^.overlayInfo^.search.entry;
+  allState^.locationResults.clear();
+  allState^.overlayInfo = OverlayInfo::location(LocationIndex(0, 0));
+  for (elem : allState^.editorData) {
+    for (line : elem^.buffer.text)
+      if (!!line^.find(&text))
+        allState^.locationResults.push_back(LocationResult(
+          .text = *line,
+          .line = line.index + 1,
+          .bufferIndex = elem.index
+        ));
+  }
+}
+
+void addOverlayCallbacks(AllState mutable* allState) {
+  allState^.uiData.erase(&"location_results_up");
+  allState^.uiData.erase(&"location_results_down");
+  allState^.uiData.erase(&"location_results_confirm");
+  allState^.uiData.erase(&"search_entry");
+  allState^.uiData.erase(&"search_confirm");
+  allState^.uiData.erase(&"search_content");
+  allState^.uiData.erase(&"search_paste_callback");
+  allState^.uiData.erase(&"location_results");
+  if (allState^.overlayInfo)
+    switch (*allState^.overlayInfo) {
+      case (search) {
+        allState^.uiData.insert("search_paste_callback", [allState, &search] {
+          search.entry = search.entry + allState^.canvas.getClipboard();
+        }.box_as<UICallback>().box_as<any>());
+        allState^.uiData.insert("search_confirm", [allState, &search]() {
+          switch (search.type) {
+            case (GLOBAL) {
+              allState^.doLocationSearch();
+            }
+            case (LINE) { 
+              if (const n = search.entry.to_int())
+                allState^.uiState.get_state<EditorUIState>()->searchedLine = n;
+              allState^.overlayInfo = null;
+            }
+            case (LOCAL) { 
+              allState^.lastSearchedText = search.entry;
+              allState^.uiState.get_state<EditorUIState>()->searchedText = search.entry;
+              allState^.overlayInfo = null;
+            }
+          }
+        }.box_as<UICallback>().box_as<any>());
+        allState^.uiData.insert("search_entry", [allState, &search](TextCallbackParam param) {
+          switch (param) {
+            case (text) {
+              search.entry += text;
+            }
+            case (backspace) {
+              if (!search.entry.empty())
+                search.entry = search.entry.substring(0, search.entry.size() - 1);
+            }
+          }
+        }.box_as<UITextCallback>().box_as<any>());
+        allState^.uiData.insert("search_content", box_as<any>(search.entry));
+      }
+      case (location) {
+        mutable v = vector<box<any>>();
+        for (i : range(location.scrollPos,
+            min(allState^.locationResults.size(), location.scrollPos + 20))) {
+          const elem = &allState^.locationResults[i];
+          mutable r = UIRecord();
+          r.insert("text", elem^.text.box_as<any>());
+          r.insert("path", allState^.paths[elem^.bufferIndex].box_as<any>());
+          r.insert("line", elem^.line.to_string().box_as<any>());
+          if (i == location.pos)
+            r.insert("selected", 1.box_as<any>());
+          v.push_back(move(r).box_as<any>());
+        }
+        allState^.uiData.insert("location_results", move(v).box_as<any>());
+        allState^.uiData.insert("location_results_up", [allState, &location] {
+          if (location.pos > 0) {
+            --location.pos;
+            if (location.pos - location.scrollPos < 2 && location.scrollPos > 0)
+              --location.scrollPos;
+          } else {
+            location.pos = allState^.locationResults.size() - 1;
+            location.scrollPos = max(0, location.pos - 9);
+          }
+        }.box_as<UICallback>().box_as<any>());
+        allState^.uiData.insert("location_results_down", [allState, &location] {
+          if (location.pos < allState^.locationResults.size() - 1) {
+            ++location.pos;
+            if (location.pos - location.scrollPos > 7 &&
+                location.scrollPos < allState^.locationResults.size() - 10)
+              ++location.scrollPos;
+          } else {
+            location.pos = 0;
+            location.scrollPos = 0;
+          }
+        }.box_as<UICallback>().box_as<any>());
+        allState^.uiData.insert("location_results_confirm", [allState, &location] {
+          allState^.toDo.push_back([allState, &location] {
+            const result = &allState^.locationResults[location.pos];
+            allState^.currentBuffer = result->bufferIndex;
+            allState^.editorData[allState^.currentBuffer].selectionStart = null;
+            allState^.uiState.get_state<EditorUIState>()->searchedLine = result^.line;
+          }.box_as<invoke<void>>());
+        }.box_as<UICallback>().box_as<any>());        
+      }
+    }
+}
+
 void addConditionalCallbacks(AllState mutable* allState) {
+  allState^.addOverlayCallbacks();
   if (allState^.nextBuffer) {
     mutable v = vector<box<any>>();
     for (i : range(0, allState^.paths.size())) {
@@ -194,12 +334,12 @@ void addConditionalCallbacks(AllState mutable* allState) {
         allState^.nextBuffer = null;
         }.box_as<UICallback>().box_as<any>());
     allState^.uiData.insert("switch_buffer_callback_up", [allState] {
-        allState^.nextBuffer = (*allState^.nextBuffer - 1 + allState^.paths.size())
-            % allState^.paths.size();
-        }.box_as<UICallback>().box_as<any>());
+      allState^.nextBuffer = (*allState^.nextBuffer - 1 + allState^.paths.size())
+          % allState^.paths.size();
+    }.box_as<UICallback>().box_as<any>());
     allState^.uiData.insert("switch_buffer_callback_down", [allState] {
-        allState^.nextBuffer = (*allState^.nextBuffer + 1) % allState^.paths.size();
-        }.box_as<UICallback>().box_as<any>());
+      allState^.nextBuffer = (*allState^.nextBuffer + 1) % allState^.paths.size();
+    }.box_as<UICallback>().box_as<any>());
   } else {
     allState^.uiData.erase(&"switch_buffer_callback_up");
     allState^.uiData.erase(&"switch_buffer_callback_down");
@@ -213,38 +353,6 @@ void addConditionalCallbacks(AllState mutable* allState) {
   allState^.uiData.insert("editor", box_as<any>(&allState^.editorData[allState^.currentBuffer]));
   allState^.uiData.insert("buffer_name", (allState^.paths[allState^.currentBuffer] +
       " {allState^.editorData[allState^.currentBuffer].cursor + vec2(1, 1)}").box_as<any>());
-  if (allState^.searchEntry) {
-    allState^.uiData.insert("search_paste_callback", [allState] {
-      allState^.searchEntry = *allState^.searchEntry + allState^.canvas.getClipboard();
-    }.box_as<UICallback>().box_as<any>());
-    allState^.uiData.insert("search_confirm", [allState]() {
-      if (allState^.lineSearch) {
-        if (const n = allState^.searchEntry^.to_int())
-          allState^.uiState.get_state<EditorUIState>()->searchedLine = n;
-      } else {
-        allState^.lastSearchedText = allState^.searchEntry;
-        allState^.uiState.get_state<EditorUIState>()->searchedText = allState^.searchEntry;
-      }
-      allState^.searchEntry = null;
-    }.box_as<UICallback>().box_as<any>());
-    allState^.uiData.insert("search_entry", [allState](TextCallbackParam param) {
-      switch (param) {
-        case (text) {
-          *allState^.searchEntry += text;
-        }
-        case (backspace) {
-          if (!allState^.searchEntry^.empty())
-            allState^.searchEntry = allState^.searchEntry^.substring(0, allState^.searchEntry^.size() - 1);
-        }
-      }
-    }.box_as<UITextCallback>().box_as<any>());
-    allState^.uiData.insert("search_content", box_as<any>(*allState^.searchEntry));
-  } else {
-    allState^.uiData.erase(&"search_entry");
-    allState^.uiData.erase(&"search_confirm");
-    allState^.uiData.erase(&"search_content");
-    allState^.uiData.erase(&"search_paste_callback");
-  }
 }
 
 int main(string[] args) {

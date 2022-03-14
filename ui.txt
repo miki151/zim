@@ -29,8 +29,8 @@ Def FontSize 18 End
           tabWidth = 2
           fontSize = FontSize
           textColor = 255 255 255
-          selectionColor = BorderColor
-          selectionMirrorColor = 80 80 80
+          selectionColor = UnsavedColor
+          selectionMirrorColor = 70 30 30
           mouseWheelStep = 4
         ))
       }
@@ -40,6 +40,21 @@ Def FontSize 18 End
         using "no_changes" fill(SavedColor)
       }
     }
+    using "location_results" position(BOTTOM_STRETCHED, height 472 {
+      fill(0 0 0)
+      frame(1, 255 255 255)
+      margins(1, list {
+        using "selected" fill(UnsavedColor)
+        vertical {
+          using "text" text(20, 255 255 255)
+          horizontal {
+            using "path" text(15, 200 200 200)
+            label(" : ", 15, 200 200 200)
+            using "line" text(15, 200 200 200)
+          }
+        }
+      })
+    })
   }
   using "prompt_text" key_handler(null)
   using "prompt_text" position(CENTER, width 400 height 80 {
@@ -72,6 +87,9 @@ Def FontSize 18 End
   using "search_confirm" key_handler(ENTER DOWN {} )
   using "switch_buffer_callback_up" key_handler(UP DOWN {LCTRL} )
   using "switch_buffer_callback_down" key_handler(DOWN DOWN {LCTRL} )
+  using "location_results_up" key_handler(UP DOWN {} )
+  using "location_results_down" key_handler(DOWN DOWN {} )
+  using "location_results_confirm" key_handler(ENTER DOWN {} )
   using "switch_buffer_callback1" key_handler(TAB DOWN {LCTRL} )
   using "switch_buffer_callback2" key_handler(LCTRL UP {} )
   using "prompt_callback_yes" key_handler(Y DOWN {} )
@@ -81,5 +99,6 @@ Def FontSize 18 End
   using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
   using "search_paste_callback" key_handler(V DOWN {LCTRL} )
   using "line_search_callback" key_handler(K DOWN {LCTRL} )
+  using "location_search_callback" key_handler(D DOWN {LCTRL} )
   using "open_file_callback" key_handler(O DOWN {LCTRL} )
 }
