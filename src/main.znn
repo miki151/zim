@@ -166,13 +166,10 @@ void addPermanentCallbacks(AllState mutable* allState) {
     const state = allState^.uiState.get_state<EditorUIState>();
     const editorData = &allState^.editorData[allState^.currentBuffer];
     if (!!editorData^.selectionStart && editorData^.selectionStart^.y == editorData^.cursor.y) {
-      mutable begin = editorData^.selectionStart^.x;
-      mutable end = editorData^.cursor.x;
-      if (begin > end)
-        swap(&begin, &end);
-      state^.searchedText = editorData^.buffer.text[editorData^.cursor.y]
-          .substring(begin, end - begin);
-      allState^.lastSearchedText = state^.searchedText;
+      if (const text = getSelectedTextInLine(editorData)) {
+        state^.searchedText = *text;
+        allState^.lastSearchedText = *text;
+      }
     } else
     if (allState^.lastSearchedText)
       state^.searchedText = *allState^.lastSearchedText;

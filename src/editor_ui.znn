@@ -10,6 +10,7 @@ struct EditorUI {
   int fontSize;
   int tabWidth;
   color selectionColor;
+  color selectionMirrorColor;
   color textColor;
   int mouseWheelStep;
 };
@@ -86,6 +87,14 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
   }
 }
 
+export string? getSelectedTextInLine(EditorUIData* data) {
+  if (!!data^.selectionStart && data^.cursor.y == data^.selectionStart^.y) {
+    return data^.buffer.text[data^.cursor.y].substring(
+        min(data^.selectionStart^.x, data^.cursor.x), abs(data^.selectionStart^.x - data^.cursor.x));
+  }
+  return null;
+}
+
 export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
@@ -94,11 +103,20 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
       r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos) < r^.v2.y)
     --data->scrollPos;
   renderSelection(editor, context, r, textSize);
+  const selected = getSelectedTextInLine(data);
   for (line : range(data->scrollPos, data^.buffer.text.size())) {
     const pos = r->v1 + vec2(0, (line - data->scrollPos) * textSize.y);
     if (pos.y > r->v2.y)
       break;
-    context.canvas->drawText(pos, data^.buffer.text[line], editor->fontSize, &editor->textColor);
+    const lineStr = &data^.buffer.text[line];
+    if (selected)
+      for (ind = lineStr^.find(&*selected); !!ind; ind = lineStr^.find(*ind + 1, &*selected))
+        if (line != data^.cursor.y || (*ind != data^.cursor.x && *ind != data^.selectionStart^.x)) {
+          const spos = r->v1 + textSize.pairwise_mult(vec2(*ind, line) - vec2(0, data->scrollPos));
+          context.canvas->fillRectangle(&rectangle(spos, spos + vec2(selected^.size() * textSize.x, textSize.y)),
+              &editor->selectionMirrorColor);
+        }
+    context.canvas->drawText(pos, *lineStr, editor->fontSize, &editor->textColor);
   }
   const cursorPos = r->v1 + textSize.pairwise_mult(data->getVisibleCursor(&data^.buffer) - vec2(0, data->scrollPos));
   context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &editor->textColor);

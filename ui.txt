@@ -30,6 +30,7 @@ Def FontSize 18 End
           fontSize = FontSize
           textColor = 255 255 255
           selectionColor = BorderColor
+          selectionMirrorColor = 80 80 80
           mouseWheelStep = 4
         ))
       }
