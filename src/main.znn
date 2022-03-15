@@ -365,9 +365,10 @@ int main(string[] args) {
   if (!flags.noPanicHandler)
     set_panic_handler(&panic_handler);
   *sdl_init();
-  mutable ui = *readUIFrom("ui.txt");
-  const window = *sdl_create_window(vec2(1280, 720), "ZIM");
-  mutable font = *window.loadSDLFont(flags.font ?? "font.ttf", 10, 100);
+  const dataDir = sdl_data_directory_path();
+  mutable ui = *readUIFrom(dataDir + "ui.txt");
+  const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
+  mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const getCanvas = [&] {
     const textTexture = *window.make_target_texture(vec2(100, 100));
     const gameSprites = hash_map<string, sdl_texture>();
@@ -377,7 +378,7 @@ int main(string[] args) {
       getCanvas(),
       rectangle(vec2(0, 0), window.size()),
       flags.all.transform([](string* path) { return get_canonical_path(*path); }),
-      Highlighter("/usr/share/source-highlight/", "cpp.lang")
+      Highlighter("/usr/share/source-highlight/", "zenon.lang")
   );
   for (path : allState.paths) {
     allState.bufferOrder.push_back(path.index);
@@ -410,7 +411,7 @@ int main(string[] args) {
         case (key) {
           if (key.key == key_type::F1 && key.type == key_event_type::DOWN) {
             allState.canvas = getCanvas();
-            if (const res = readUIFrom("ui.txt"))
+            if (const res = readUIFrom(dataDir + "ui.txt"))
               ui = *move(res);
             else
               printf(res.get_error());
