@@ -152,7 +152,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   }
   switch (event^.key) {
     case (ENTER) {
-      data->cursor = data^.buffer.onEnter(data->getVisibleCursor(&data^.buffer));
+      data->cursor = data^.buffer.onEnter(data->getVisibleCursor(&data^.buffer), true);
     }
     case (BACKSPACE) {
       if (data->selectionStart) {
@@ -276,7 +276,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         for (it : lines) {
           discard editor->onTextEvent(context, r, *it);
           if (it.index < lines.size() - 1)
-            data->cursor = data^.buffer.onEnter(data->getVisibleCursor(&data^.buffer));
+            data->cursor = data^.buffer.onEnter(data->getVisibleCursor(&data^.buffer), false);
         }
       } else
         return false;

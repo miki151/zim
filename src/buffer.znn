@@ -124,15 +124,20 @@ export vec2 onText(Buffer mutable* buf, string text, vec2 pos) {
   return newPos;
 }
 
-export vec2 onEnter(Buffer mutable* buf, vec2 pos) {
+export vec2 onEnter(Buffer mutable* buf, vec2 pos, bool withIndent) {
   buf->addHistory(buf->text.copy(), pos, vec2(0, pos.y + 1));
   assert(pos.y >= 0 && pos.y < buf->text.size());
-  buf->text.insert(pos.y + 1, "");
+  mutable indent = "";
+  if (withIndent)
+    for (i = 0; i < buf->text[pos.y].size() && buf->text[pos.y][i] == ' '; ++i)
+      indent = indent + " ";
+  buf->text.insert(pos.y + 1, indent);
   if (pos.x < buf->text[pos.y].size()) {
-    buf->text[pos.y + 1] = buf->text[pos.y].substring(pos.x, buf->text[pos.y].size() - pos.x);
+    buf->text[pos.y + 1] = buf->text[pos.y + 1] +
+        buf->text[pos.y].substring(pos.x, buf->text[pos.y].size() - pos.x);
     buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x);
   }
-  return vec2(0, pos.y + 1);
+  return vec2(indent.size(), pos.y + 1);
 }
 
 export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos) {
