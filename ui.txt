@@ -5,7 +5,7 @@ Def vertical static_list VERTICAL End
 Def BorderColor 150 150 150 End
 Def SavedColor 100 150 100 End
 Def UnsavedColor 200 100 100 End
-Def FontSize 18 End
+Def FontSize 17 End
 
 {
   using "reload_ui" key_handler(F1 DOWN {})

@@ -18,12 +18,19 @@ struct EditorUI {
   enum_map<TokenType, color> syntaxColors;
 };
 
+export struct ClickEvent {
+  milliseconds_t time;
+  vec2 cursor;
+};
+
+ClickEvent implicit_copy(ClickEvent*) = default;
+
 export struct EditorUIState {
   bool mouseSelection;
   string? searchedText;
   int? searchedLine;
-  milliseconds_t lastLeftClick;
-  milliseconds_t previousLeftClick;
+  ClickEvent lastLeftClick;
+  ClickEvent previousLeftClick;
 };
 
 export struct EditorUIData {
@@ -41,7 +48,7 @@ vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
 }
 
 export EditorUIState() {
-  return EditorUIState::EditorUIState(false, null, null, 0, 0);
+  return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)));
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
@@ -335,17 +342,18 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
     case (LEFT) {
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       const curTime = current_time_milli();
-      data->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
-      data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
-      data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
-      if (curTime - state->previousLeftClick < 500) {
+      const clickPos = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
+      data->cursor.y = min(data->buffer.text.size() - 1, clickPos.y);
+      data->cursor.x = min(data->buffer.text[data->cursor.y].size(), clickPos.x);
+      if (curTime - state->previousLeftClick.time < 500 && clickPos == state->previousLeftClick.cursor) {
         data->selectionStart = vec2(0, data->cursor.y);
         if (data->cursor.y < data->buffer.text.size() - 1)
           data->cursor = vec2(0, data->cursor.y + 1);
         else
           data->cursor = vec2(data->buffer.text[data->cursor.y].size(), data->cursor.y);
       } else
-      if (curTime - state->lastLeftClick < 500) {
+      if (clickPos == data^.cursor && curTime - state->lastLeftClick.time < 500 &&
+          clickPos == state->lastLeftClick.cursor) {
         const status = isalnum(data->buffer.text[data->cursor.y][data->cursor.x]);
         mutable start = data->cursor;
         while (start.x > 0 && isalnum(data->buffer.text[start.y][start.x - 1]) == status)
@@ -361,7 +369,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
         state->mouseSelection = true;
       }
       state->previousLeftClick = state->lastLeftClick;
-      state->lastLeftClick = curTime;
+      state->lastLeftClick = ClickEvent(curTime, clickPos);
       return true;
     }
     case (WHEEL_UP) {
