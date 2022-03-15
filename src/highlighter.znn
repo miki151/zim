@@ -1,0 +1,133 @@
+
+export import "color.znn";
+export import "std/vector.znn";
+export import "std/enum.znn";
+import "std/io.znn";
+
+export extern enum TokenType {
+  DEFAULT,
+  KEYWORD,
+  STRING,
+  TYPE,
+  COMMENT,
+  SYMBOL,
+  NUMBER,
+  PREPROC
+};
+
+embed {
+#include "srchilite/langdefmanager.h"
+#include "srchilite/regexrulefactory.h"
+#include "srchilite/sourcehighlighter.h"
+#include "srchilite/formattermanager.h"
+#include "srchilite/formatterparams.h"
+#include <iostream>
+
+enum class TokenType {
+  DEFAULT,
+  KEYWORD,
+  STRING,
+  TYPE,
+  COMMENT,
+  SYMBOL,
+  NUMBER,
+  PREPROC
+};
+
+struct TokenInfo {
+  TokenType type;
+  zenon_string content;
+};
+
+class InfoFormatter: public srchilite::Formatter {
+  TokenType type;
+  vector<TokenInfo>* tokens;
+
+  public:
+  InfoFormatter(TokenType type, vector<TokenInfo>* tokens) : type(type), tokens(tokens) {
+  }
+
+  virtual void format(const std::string &s, const srchilite::FormatterParams *params = 0) {
+    if (!s.empty()) {
+      tokens->push_back(TokenInfo{type, zenon_string::owned(s.data())});
+    }
+  }
+};
+
+typedef boost::shared_ptr<InfoFormatter> InfoFormatterPtr;
+using srchilite::HighlightStatePtr;
+
+struct Highlighter {
+  std::unique_ptr<srchilite::FormatterManager> formatterManager;
+  std::unique_ptr<srchilite::FormatterParams> params;
+  std::unique_ptr<vector<TokenInfo>> tokenBuffer;
+  HighlightStatePtr initialState;
+};
+
+using HighlighterState = std::unique_ptr<srchilite::SourceHighlighter>;
+
+Highlighter createHighlighter(zenon_string dir, zenon_string langFile) {
+  srchilite::RegexRuleFactory ruleFactory;
+  srchilite::LangDefManager langDefManager(&ruleFactory);
+
+  auto initialState = langDefManager.getHighlightState(dir.data(), langFile.data());
+  auto tokens = std::make_unique<vector<TokenInfo>>();
+  auto formatterManager = std::make_unique<srchilite::FormatterManager>(InfoFormatterPtr(
+        new InfoFormatter(TokenType::DEFAULT, tokens.get())));
+
+  formatterManager->addFormatter("keyword", InfoFormatterPtr(new InfoFormatter(TokenType::KEYWORD, tokens.get())));
+  formatterManager->addFormatter("string", InfoFormatterPtr(new InfoFormatter(
+          TokenType::STRING, tokens.get())));
+  // for "type" we use the same formatter as for "keyword"
+  formatterManager->addFormatter("type", InfoFormatterPtr(new InfoFormatter(
+          TokenType::TYPE, tokens.get())));
+  formatterManager->addFormatter("comment", InfoFormatterPtr(
+        new InfoFormatter(TokenType::COMMENT, tokens.get())));
+  formatterManager->addFormatter("symbol", InfoFormatterPtr(new InfoFormatter(
+          TokenType::SYMBOL, tokens.get())));
+  formatterManager->addFormatter("number", InfoFormatterPtr(new InfoFormatter(
+          TokenType::NUMBER, tokens.get())));
+  formatterManager->addFormatter("preproc", InfoFormatterPtr(
+        new InfoFormatter(TokenType::PREPROC, tokens.get())));
+
+  // make sure it uses additional information
+  auto params = std::unique_ptr<srchilite::FormatterParams>();
+  return Highlighter {
+        std::move(formatterManager), std::move(params), std::move(tokens), std::move(initialState)
+  };
+}
+
+HighlighterState getInitialState(Highlighter const* h) {
+  auto ret = std::make_unique<srchilite::SourceHighlighter>(h->initialState);
+  ret->setFormatterManager(h->formatterManager.get());
+  ret->setFormatterParams(h->params.get());
+  return std::move(ret);
+}
+
+}
+
+export extern struct Highlighter;
+export extern struct HighlighterState;
+export extern struct TokenInfo;
+extern Highlighter createHighlighter(string dir, string langFile);
+export extern HighlighterState getInitialState(Highlighter*);
+
+export Highlighter(string dir, string langFile) {
+  return createHighlighter(dir, langFile);
+}
+
+export vector<TokenInfo> getTokens(Highlighter* highlighter, HighlighterState mutable* state, string line) {
+  embed_returns {
+    (*state)->highlightParagraph(line.data());
+    return std::move(*highlighter->tokenBuffer);
+  }
+}
+
+export string getContent(TokenInfo* info) {
+  embed_returns { return info->content; }
+}
+
+export TokenType getType(TokenInfo* info) {
+  embed_returns { return info->type; }
+}
+

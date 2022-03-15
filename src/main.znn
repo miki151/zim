@@ -17,6 +17,7 @@ import "std/vector.znn";
 import "sdl_event.znn";
 import "scrollbar_ui.znn";
 import "dialogs.znn";
+import "highlighter.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
@@ -118,9 +119,10 @@ struct AllState {
   OverlayInfo? overlayInfo;
   vector<box<invoke<void>>> toDo;
   vector<LocationResult> locationResults;
+  Highlighter highlighter;
 };
 
-AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths) {
+AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths, Highlighter highlighter) {
   return AllState::AllState(
     .canvas = move(canvas),
     .uiBounds = move(windowBounds),
@@ -138,6 +140,7 @@ AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths) {
     .overlayInfo = null,
     .toDo = vector<box<invoke<void>>>(),
     .locationResults = vector<LocationResult>(),
+    .highlighter = move(highlighter)
   );
 }
 
@@ -165,7 +168,8 @@ void addPermanentCallbacks(AllState mutable* allState) {
             Buffer(*open_file_r(*file)^.read_content()),
             vec2(0, 0),
             0,
-            null
+            null,
+            &allState^.highlighter
           ));
           allState^.currentBuffer = allState^.editorData.size() - 1;
         }
@@ -372,7 +376,8 @@ int main(string[] args) {
   mutable allState = AllState(
       getCanvas(),
       rectangle(vec2(0, 0), window.size()),
-      flags.all.transform([](string* path) { return get_canonical_path(*path); })
+      flags.all.transform([](string* path) { return get_canonical_path(*path); }),
+      Highlighter("/usr/share/source-highlight/", "cpp.lang")
   );
   for (path : allState.paths) {
     allState.bufferOrder.push_back(path.index);
@@ -380,7 +385,8 @@ int main(string[] args) {
       Buffer(*open_file_r(*path)^.read_content()),
       vec2(0, 0),
       0,
-      null
+      null,
+      &allState.highlighter
     ));
   }
   allState.addPermanentCallbacks();

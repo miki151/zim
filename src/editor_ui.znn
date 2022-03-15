@@ -4,6 +4,8 @@ import "std/io.znn";
 export import "buffer.znn";
 import "std/char.znn";
 import "std/time.znn";
+export import "highlighter.znn";
+export import "std/enum_map.znn";
 
 export [@ui_element]
 struct EditorUI {
@@ -13,6 +15,7 @@ struct EditorUI {
   color selectionMirrorColor;
   color textColor;
   int mouseWheelStep;
+  enum_map<TokenType, color> syntaxColors;
 };
 
 export struct EditorUIState {
@@ -28,6 +31,7 @@ export struct EditorUIData {
   vec2 cursor;
   int scrollPos;
   vec2? selectionStart;
+  Highlighter* highlighter;
 };
 
 vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
@@ -104,6 +108,7 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
     --data->scrollPos;
   renderSelection(editor, context, r, textSize);
   const selected = getSelectedTextInLine(data);
+  mutable highlighterState = data^.highlighter^.getInitialState();
   for (line : range(data->scrollPos, data^.buffer.text.size())) {
     const pos = r->v1 + vec2(0, (line - data->scrollPos) * textSize.y);
     if (pos.y > r->v2.y)
@@ -116,7 +121,14 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
           context.canvas->fillRectangle(&rectangle(spos, spos + vec2(selected^.size() * textSize.x, textSize.y)),
               &editor->selectionMirrorColor);
         }
-    context.canvas->drawText(pos, *lineStr, editor->fontSize, &editor->textColor);
+    const tokens = data^.highlighter^.getTokens(&highlighterState, *lineStr);
+    mutable length = 0;
+    for (token : tokens) {
+      const content = token^.getContent();
+      context.canvas->drawText(pos + vec2(length * textSize.x, 0), content,
+          editor->fontSize, &editor^.syntaxColors[token^.getType()]);
+      length += content.size();
+    }
   }
   const cursorPos = r->v1 + textSize.pairwise_mult(data->getVisibleCursor(&data^.buffer) - vec2(0, data->scrollPos));
   context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &editor->textColor);
