@@ -140,13 +140,19 @@ export vec2 onEnter(Buffer mutable* buf, vec2 pos, bool withIndent) {
   return vec2(indent.size(), pos.y + 1);
 }
 
-export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos) {
+export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos, int tabWidth) {
   const textCopy = buf->text.copy();
   const oldPos = pos;
   if (pos.x > 0) {
-    buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x - 1)
+    const numChars = [&] {
+      for (i : range(0, pos.x))
+        if (buf->text[pos.y][i] != ' ')
+          return 1;
+      return pos.x % tabWidth == 0 ? tabWidth : 1;
+    }();
+    buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x - numChars)
         + buf->text[pos.y].substring(pos.x, buf->text[pos.y].size() - pos.x);
-    --pos.x;
+    pos.x -= numChars;
   } else if (pos.y > 0) {
     pos.x = buf->text[pos.y - 1].size();
     buf->text[pos.y - 1] += buf->text[pos.y];

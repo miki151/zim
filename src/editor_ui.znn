@@ -166,7 +166,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
         data->selectionStart = null;
       } else
-        data->cursor = data^.buffer.onBackspace(data->getVisibleCursor(&data^.buffer));
+        data->cursor = data^.buffer.onBackspace(data->getVisibleCursor(&data^.buffer), editor^.tabWidth);
     }
     case (DELETE) {
       if (data->selectionStart) {
