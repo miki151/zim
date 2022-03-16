@@ -77,7 +77,7 @@ Def FontSize 17 End
       position(CENTER, label("Y/N", 20, 255 255 255))
     })
   }) 
-  using "next_buffer_path" position(CENTER, {
+  using "next_buffer_path" position(CENTER, max_height 540 {
     fill(BorderColor)
     frame(1, 255 255 255)
     margins(1, list {

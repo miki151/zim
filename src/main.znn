@@ -102,6 +102,11 @@ union OverlayInfo {
   LocationIndex location;
 };
 
+struct NextBufferInfo {
+  int index;
+  int scrollPos;
+};
+
 struct AllState {
   SDLCanvas canvas;
   rectangle uiBounds;
@@ -111,7 +116,7 @@ struct AllState {
   SDLEventsState eventsState;
   UIState uiState;
   int currentBuffer;
-  int? nextBuffer;
+  NextBufferInfo? nextBuffer;
   vector<EditorUIData> editorData;
   vector<int> bufferOrder;
   vector<string> paths;
@@ -157,6 +162,31 @@ EditorUIState mutable* getEditorState(AllState mutable* allState) {
   return allState^.uiState.get_state<EditorUIState>();
 }
 
+void switchBufferDownCallback(AllState mutable* allState) {
+  if (!allState^.nextBuffer)
+    allState^.nextBuffer = NextBufferInfo(0, 0);
+  else if (allState^.nextBuffer^.index < allState^.paths.size() - 1) {
+    ++allState^.nextBuffer^.index;
+    if (allState^.nextBuffer^.index - allState^.nextBuffer^.scrollPos > 17 && 
+        allState^.nextBuffer^.scrollPos < allState^.paths.size() - 20)
+      ++allState^.nextBuffer^.scrollPos;
+  } else {
+    allState^.nextBuffer^.index = 0;
+    allState^.nextBuffer^.scrollPos = 0;
+  }
+}
+
+void switchBufferUpCallback(AllState mutable* allState) {
+  if (allState^.nextBuffer^.index > 0) {
+    --allState^.nextBuffer^.index;
+    if (allState^.nextBuffer^.index - allState^.nextBuffer^.scrollPos < 2 && allState^.nextBuffer^.scrollPos > 0)
+      --allState^.nextBuffer^.scrollPos;
+  } else {
+    allState^.nextBuffer^.index = allState^.paths.size() - 1;
+    allState^.nextBuffer^.scrollPos = max(0, allState^.paths.size() - 20);
+  }
+}
+
 void addPermanentCallbacks(AllState mutable* allState) {
   allState^.uiData.insert("exit_callback", [allState] {
     if (allState^.overlayInfo) {
@@ -190,7 +220,7 @@ void addPermanentCallbacks(AllState mutable* allState) {
     }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("switch_buffer_callback1", [allState] {
-    allState^.nextBuffer = (allState^.nextBuffer ?? 0 + 1) % allState^.editorData.size();
+    switchBufferDownCallback(allState);
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("save_callback", [allState] {
     for (elem : allState^.editorData)
@@ -368,27 +398,27 @@ void addConditionalCallbacks(AllState mutable* allState) {
   allState^.addOverlayCallbacks();
   if (allState^.nextBuffer) {
     mutable v = vector<box<any>>();
-    for (i : range(0, allState^.paths.size())) {
+    for (i : range(allState^.nextBuffer^.scrollPos,
+        min(allState^.paths.size(), allState^.nextBuffer^.scrollPos + 20))) {
       mutable r = UIRecord();
       r.insert("text", allState^.paths[allState^.bufferOrder[i]].box_as<any>());
-      if (i == *allState^.nextBuffer)
+      if (i == allState^.nextBuffer^.index)
         r.insert("selected", 1.box_as<any>());
       v.push_back(move(r).box_as<any>());
     }
     allState^.uiData.insert("next_buffer_path", move(v).box_as<any>());
     allState^.uiData.insert("switch_buffer_callback2", [allState] {
       allState^.addCursorHistory();
-      allState^.currentBuffer = allState^.bufferOrder[*allState^.nextBuffer];
+      allState^.currentBuffer = allState^.bufferOrder[allState^.nextBuffer^.index];
       allState^.bufferOrder.remove(*allState^.bufferOrder.find(&allState^.currentBuffer));
       allState^.bufferOrder.insert(0, allState^.currentBuffer);
       allState^.nextBuffer = null;
     }.box_as<UICallback>().box_as<any>());
     allState^.uiData.insert("switch_buffer_callback_up", [allState] {
-      allState^.nextBuffer = (*allState^.nextBuffer - 1 + allState^.paths.size())
-          % allState^.paths.size();
+      switchBufferUpCallback(allState);
     }.box_as<UICallback>().box_as<any>());
     allState^.uiData.insert("switch_buffer_callback_down", [allState] {
-      allState^.nextBuffer = (*allState^.nextBuffer + 1) % allState^.paths.size();
+      switchBufferDownCallback(allState);
     }.box_as<UICallback>().box_as<any>());
   } else {
     allState^.uiData.erase(&"switch_buffer_callback_up");
