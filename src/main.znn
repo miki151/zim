@@ -206,20 +206,20 @@ void addPermanentCallbacks(AllState mutable* allState) {
     allState^.overlayInfo = OverlayInfo::search(SearchInfo("", SearchType::LINE));
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("location_search_callback", [allState] {
-    if (!allState^.overlayInfo && !allState^.locationResults.empty())
+    if (const text = getSelectedTextInLine(allState^.getEditorData()))
+      allState^.doLocationSearch(*text);
+    else if (!allState^.overlayInfo && !allState^.locationResults.empty())
       allState^.overlayInfo = OverlayInfo::location(LocationIndex(0, 0));
-    else
+    else 
       allState^.overlayInfo = OverlayInfo::search(SearchInfo("", SearchType::GLOBAL));
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("search_repeat_callback", [allState] {
     const state = allState^.uiState.get_state<EditorUIState>();
     const editorData = allState^.getEditorData();
-    if (!!editorData^.selectionStart && editorData^.selectionStart^.y == editorData^.cursor.y) {
-      if (const text = getSelectedTextInLine(editorData)) {
-        allState^.addCursorHistory();
-        state^.searchedText = *text;
-        allState^.lastSearchedText = *text;
-      }
+    if (const text = getSelectedTextInLine(editorData)) {
+      allState^.addCursorHistory();
+      state^.searchedText = *text;
+      allState^.lastSearchedText = *text;
     } else
     if (allState^.lastSearchedText) {
       allState^.addCursorHistory();
@@ -227,31 +227,34 @@ void addPermanentCallbacks(AllState mutable* allState) {
     }
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("navigate_back_callback", [allState] {
-    const state = allState^.getEditorState();
-    if (!state^.cursorHistory.empty()) {
-      const data = allState^.getEditorData();
-      data^.selectionStart = null;
-      state^.addCursorForward(data^.cursor, data^.buffer.path);
-      const popped = state^.cursorHistory.pop_back();
-      allState^.currentBuffer = *allState^.paths.find(&popped.path);
-      state^.searchedPos = popped.pos;
-    }
+    allState^.toDo.push_back([allState] {
+      const state = allState^.getEditorState();
+      if (!state^.cursorHistory.empty()) {
+        const data = allState^.getEditorData();
+        data^.selectionStart = null;
+        state^.addCursorForward(data^.cursor, data^.buffer.path);
+        const popped = state^.cursorHistory.pop_back();
+        allState^.currentBuffer = *allState^.paths.find(&popped.path);
+        state^.searchedPos = popped.pos;
+      }
+    }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("navigate_forward_callback", [allState] {
-    const state = allState^.getEditorState();
-    if (!state^.cursorForward.empty()) {
-      const data = allState^.getEditorData();
-      data^.selectionStart = null;
-      const popped = state^.cursorForward.pop_back();
-      allState^.currentBuffer = *allState^.paths.find(&popped.path);
-      state^.searchedPos = popped.pos;
-      state^.cursorHistory.push_back(CursorData(data^.cursor, data^.buffer.path));
-    }
+    allState^.toDo.push_back([allState] {
+      const state = allState^.getEditorState();
+      if (!state^.cursorForward.empty()) {
+        const data = allState^.getEditorData();
+        data^.selectionStart = null;
+        const popped = state^.cursorForward.pop_back();
+        allState^.currentBuffer = *allState^.paths.find(&popped.path);
+        state^.searchedPos = popped.pos;
+        state^.cursorHistory.push_back(CursorData(data^.cursor, data^.buffer.path));
+      }
+    }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
 }
 
-void doLocationSearch(AllState mutable* allState) {
-  const text = allState^.overlayInfo^.search.entry;
+void doLocationSearch(AllState mutable* allState, string text) {
   allState^.locationResults.clear();
   allState^.overlayInfo = OverlayInfo::location(LocationIndex(0, 0));
   for (elem : allState^.editorData) {
@@ -283,7 +286,7 @@ void addOverlayCallbacks(AllState mutable* allState) {
         allState^.uiData.insert("search_confirm", [allState, &search]() {
           switch (search.type) {
             case (GLOBAL) {
-              allState^.doLocationSearch();
+              allState^.doLocationSearch(search.entry);
             }
             case (LINE) { 
               if (const n = search.entry.to_int()) {
