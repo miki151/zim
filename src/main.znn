@@ -144,6 +144,19 @@ AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths, Highlig
   );
 }
 
+void addCursorHistory(AllState mutable* allState) {
+  const editorData = allState^.getEditorData();
+  allState^.getEditorState()^.addCursorHistory(editorData^.cursor, editorData^.buffer.path);
+}
+
+EditorUIData mutable* getEditorData(AllState mutable* allState) {
+  return &allState^.editorData[allState^.currentBuffer];
+}
+
+EditorUIState mutable* getEditorState(AllState mutable* allState) {
+  return allState^.uiState.get_state<EditorUIState>();
+}
+
 void addPermanentCallbacks(AllState mutable* allState) {
   allState^.uiData.insert("exit_callback", [allState] {
     if (allState^.overlayInfo) {
@@ -165,7 +178,7 @@ void addPermanentCallbacks(AllState mutable* allState) {
           allState^.paths.push_back(*file);
           allState^.bufferOrder.insert(0, allState^.paths.size() - 1);
           allState^.editorData.push_back(EditorUIData(
-            Buffer(*open_file_r(*file)^.read_content()),
+            Buffer(*file, *open_file_r(*file)^.read_content()),
             vec2(0, 0),
             0,
             null,
@@ -200,15 +213,40 @@ void addPermanentCallbacks(AllState mutable* allState) {
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("search_repeat_callback", [allState] {
     const state = allState^.uiState.get_state<EditorUIState>();
-    const editorData = &allState^.editorData[allState^.currentBuffer];
+    const editorData = allState^.getEditorData();
     if (!!editorData^.selectionStart && editorData^.selectionStart^.y == editorData^.cursor.y) {
       if (const text = getSelectedTextInLine(editorData)) {
+        allState^.addCursorHistory();
         state^.searchedText = *text;
         allState^.lastSearchedText = *text;
       }
     } else
-    if (allState^.lastSearchedText)
+    if (allState^.lastSearchedText) {
+      allState^.addCursorHistory();
       state^.searchedText = *allState^.lastSearchedText;
+    }
+  }.box_as<UICallback>().box_as<any>());
+  allState^.uiData.insert("navigate_back_callback", [allState] {
+    const state = allState^.getEditorState();
+    if (!state^.cursorHistory.empty()) {
+      const data = allState^.getEditorData();
+      data^.selectionStart = null;
+      state^.addCursorForward(data^.cursor, data^.buffer.path);
+      const popped = state^.cursorHistory.pop_back();
+      allState^.currentBuffer = *allState^.paths.find(&popped.path);
+      state^.searchedPos = popped.pos;
+    }
+  }.box_as<UICallback>().box_as<any>());
+  allState^.uiData.insert("navigate_forward_callback", [allState] {
+    const state = allState^.getEditorState();
+    if (!state^.cursorForward.empty()) {
+      const data = allState^.getEditorData();
+      data^.selectionStart = null;
+      const popped = state^.cursorForward.pop_back();
+      allState^.currentBuffer = *allState^.paths.find(&popped.path);
+      state^.searchedPos = popped.pos;
+      state^.cursorHistory.push_back(CursorData(data^.cursor, data^.buffer.path));
+    }
   }.box_as<UICallback>().box_as<any>());
 }
 
@@ -248,13 +286,16 @@ void addOverlayCallbacks(AllState mutable* allState) {
               allState^.doLocationSearch();
             }
             case (LINE) { 
-              if (const n = search.entry.to_int())
-                allState^.uiState.get_state<EditorUIState>()->searchedLine = n;
+              if (const n = search.entry.to_int()) {
+                allState^.addCursorHistory();
+                allState^.getEditorState()->searchedPos = vec2(0, *n - 1);
+              }
               allState^.overlayInfo = null;
             }
             case (LOCAL) { 
+              allState^.addCursorHistory();
               allState^.lastSearchedText = search.entry;
-              allState^.uiState.get_state<EditorUIState>()->searchedText = search.entry;
+              allState^.getEditorState()->searchedText = search.entry;
               allState^.overlayInfo = null;
             }
           }
@@ -309,10 +350,11 @@ void addOverlayCallbacks(AllState mutable* allState) {
         }.box_as<UICallback>().box_as<any>());
         allState^.uiData.insert("location_results_confirm", [allState, &location] {
           allState^.toDo.push_back([allState, &location] {
+            allState^.addCursorHistory();
             const result = &allState^.locationResults[location.pos];
             allState^.currentBuffer = result->bufferIndex;
-            allState^.editorData[allState^.currentBuffer].selectionStart = null;
-            allState^.uiState.get_state<EditorUIState>()->searchedLine = result^.line;
+            allState^.getEditorData()^.selectionStart = null;
+            allState^.getEditorState()^.searchedPos = vec2(0, result^.line - 1);
           }.box_as<invoke<void>>());
         }.box_as<UICallback>().box_as<any>());        
       }
@@ -332,11 +374,12 @@ void addConditionalCallbacks(AllState mutable* allState) {
     }
     allState^.uiData.insert("next_buffer_path", move(v).box_as<any>());
     allState^.uiData.insert("switch_buffer_callback2", [allState] {
-        allState^.currentBuffer = allState^.bufferOrder[*allState^.nextBuffer];
-        allState^.bufferOrder.remove(*allState^.bufferOrder.find(&allState^.currentBuffer));
-        allState^.bufferOrder.insert(0, allState^.currentBuffer);
-        allState^.nextBuffer = null;
-        }.box_as<UICallback>().box_as<any>());
+      allState^.addCursorHistory();
+      allState^.currentBuffer = allState^.bufferOrder[*allState^.nextBuffer];
+      allState^.bufferOrder.remove(*allState^.bufferOrder.find(&allState^.currentBuffer));
+      allState^.bufferOrder.insert(0, allState^.currentBuffer);
+      allState^.nextBuffer = null;
+    }.box_as<UICallback>().box_as<any>());
     allState^.uiData.insert("switch_buffer_callback_up", [allState] {
       allState^.nextBuffer = (*allState^.nextBuffer - 1 + allState^.paths.size())
           % allState^.paths.size();
@@ -354,9 +397,9 @@ void addConditionalCallbacks(AllState mutable* allState) {
     allState^.uiData.insert("no_changes", 1.box_as<any>());
   else
     allState^.uiData.erase(&"no_changes");
-  allState^.uiData.insert("editor", box_as<any>(&allState^.editorData[allState^.currentBuffer]));
+  allState^.uiData.insert("editor", box_as<any>(allState^.getEditorData()));
   allState^.uiData.insert("buffer_name", (allState^.paths[allState^.currentBuffer] +
-      " {allState^.editorData[allState^.currentBuffer].cursor + vec2(1, 1)}").box_as<any>());
+      " {allState^.getEditorData()^.cursor + vec2(1, 1)}").box_as<any>());
 }
 
 int main(string[] args) {
@@ -383,7 +426,7 @@ int main(string[] args) {
   for (path : allState.paths) {
     allState.bufferOrder.push_back(path.index);
     allState.editorData.push_back(EditorUIData(
-      Buffer(*open_file_r(*path)^.read_content()),
+      Buffer(*path, *open_file_r(*path)^.read_content()),
       vec2(0, 0),
       0,
       null,

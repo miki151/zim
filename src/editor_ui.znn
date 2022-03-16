@@ -25,13 +25,34 @@ export struct ClickEvent {
 
 ClickEvent implicit_copy(ClickEvent*) = default;
 
+export struct CursorData {
+  vec2 pos;
+  string path;
+};
+
+export void addCursorHistory(EditorUIState mutable* state, vec2 pos, string path) {
+  state^.cursorHistory.push_back(CursorData(pos, move(path)));
+  state^.cursorForward.clear();
+}
+
+export void addCursorForward(EditorUIState mutable* state, vec2 pos, string path) {
+  state^.cursorForward.push_back(CursorData(pos, move(path)));
+}
+
 export struct EditorUIState {
   bool mouseSelection;
   string? searchedText;
-  int? searchedLine;
+  vec2? searchedPos;
   ClickEvent lastLeftClick;
   ClickEvent previousLeftClick;
+  vector<CursorData> cursorHistory;
+  vector<CursorData> cursorForward;  
 };
+
+export EditorUIState() {
+  return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)),
+      vector<CursorData>(), vector<CursorData>());
+}
 
 export struct EditorUIData {
   Buffer buffer;
@@ -45,10 +66,6 @@ vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
   mutable ret = data->cursor;
   ret.x = min(ret.x, data^.buffer.text[data->cursor.y].size());
   return move(ret);
-}
-
-export EditorUIState() {
-  return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)));
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
@@ -75,12 +92,12 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
 void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const state = context.state^.get_state<EditorUIState>();
-  if (state->searchedLine) {
-    const line = min(max(0, *state->searchedLine - 1), data^.buffer.text.size() - 1);
-    data^.cursor = vec2(0, line);
+  if (state->searchedPos) {
+    const line = min(max(0, state->searchedPos^.y), data^.buffer.text.size() - 1);
+    data^.cursor = vec2(state^.searchedPos^.x, line);
     if ((line - data->scrollPos) * textSize.y > r->height() || line < data->scrollPos)
       data->scrollPos = max(0, line - r->height() / (2 * textSize.y));
-    state->searchedLine = null;
+    state->searchedPos = null;
   } else
   if (state->searchedText) {
     for (lineIndex = 0; lineIndex < data^.buffer.text.size(); ++lineIndex) {
@@ -142,6 +159,7 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
 }
 
 export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_event* event) {
+  const state = context.state^.get_state<EditorUIState>();
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   if (event^.type != key_event_type::DOWN)
     return false;
@@ -192,9 +210,11 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       data->cursor.y = min(data^.buffer.text.size() - 1, data->cursor.y + 1);
     }
     case (PAGE_UP) {
+      state^.addCursorHistory(data^.cursor, data^.buffer.path);
       data->cursor.y = max(0, data->cursor.y - r->height() / textSize.y);
     }
     case (PAGE_DOWN) {
+      state^.addCursorHistory(data^.cursor, data^.buffer.path);
       data->cursor.y = min(data^.buffer.text.size() - 1, data->cursor.y + r->height() / textSize.y);
     }
     case (TAB) {
@@ -230,9 +250,9 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else {
         data->cursor.x = cursor.x - 1;
         if (lctrl) {
-          const state = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]);
+          const charState = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]);
           while (data^.cursor.x > 0 && 
-              isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]) == state)
+              isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]) == charState)
             --data^.cursor.x;
         }
       }
@@ -256,9 +276,9 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else {
         ++data->cursor.x;
         if (lctrl) {
-          const state = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]);
+          const charState = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]);
           while (data^.cursor.x < data^.buffer.text[data^.cursor.y].size() && 
-              isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]) == state)
+              isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]) == charState)
             ++data^.cursor.x;
         }
       }
@@ -295,7 +315,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else
         return false;
     }
-    case (Y) {
+    case (R) {
       if (lctrl) {
         if (const pos = data^.buffer.redo(data->getVisibleCursor(&data^.buffer)))
           data->cursor = *pos;
@@ -343,6 +363,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       const curTime = current_time_milli();
       const clickPos = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
+      state^.addCursorHistory(data^.cursor, data^.buffer.path);
       data->cursor.y = min(data->buffer.text.size() - 1, clickPos.y);
       data->cursor.x = min(data->buffer.text[data->cursor.y].size(), clickPos.x);
       if (curTime - state->previousLeftClick.time < 500 && clickPos == state->previousLeftClick.cursor) {

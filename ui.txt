@@ -111,4 +111,6 @@ Def FontSize 17 End
   using "line_search_callback" key_handler(K DOWN {LCTRL} )
   using "location_search_callback" key_handler(D DOWN {LCTRL} )
   using "open_file_callback" key_handler(O DOWN {LCTRL} )
+  using "navigate_back_callback" key_handler(LEFT DOWN {LALT} )
+  using "navigate_forward_callback" key_handler(RIGHT DOWN {LALT} )
 }

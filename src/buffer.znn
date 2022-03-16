@@ -10,15 +10,16 @@ export struct HistoryElem {
 };
 
 export struct Buffer {
+  string path;
   vector<string> text;
   vector<string> origText;
   vector<HistoryElem> history;
   vector<HistoryElem> forward;
 };
 
-export Buffer(string content) {
+export Buffer(string path, string content) {
   const lines = breakLines(move(content));
-  return Buffer::Buffer(lines.copy(), lines.copy(),
+  return Buffer::Buffer(path, lines.copy(), lines.copy(),
       vector<HistoryElem>(),
       vector<HistoryElem>());
 }
