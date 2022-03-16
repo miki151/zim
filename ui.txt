@@ -50,7 +50,7 @@ Def FontSize 17 End
         using "no_changes" fill(SavedColor)
       }
     }
-    using "location_results" position(BOTTOM_STRETCHED, height 472 {
+    using "location_results" position(BOTTOM_STRETCHED, max_height 472 {
       fill(0 0 0)
       frame(1, 255 255 255)
       margins(1, list {
