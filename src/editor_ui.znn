@@ -78,7 +78,7 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
     const origStartLine = startPos.y;
     const renderLine = [&] (int line, int px, int kx) {
       const pos = r->v1 + (vec2(px, line) - data->scrollPos).pairwise_mult(textSize);
-      const pos2 = r->v1 + (vec2(kx, line) + vec2(1, 1) - data->scrollPos).pairwise_mult(textSize);
+      const pos2 = r->v1 + (vec2(kx, line) + vec2(0, 1) - data->scrollPos).pairwise_mult(textSize);
       context.canvas->fillRectangle(&rectangle(pos, pos2), &editor->selectionColor);
     };
     while (startPos.y <= endPos.y) {
