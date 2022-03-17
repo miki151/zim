@@ -299,12 +299,20 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
     }
     case (V) {
       if (lctrl) {
-        const lines = breakLines(context.canvas->getClipboard());
-        for (it : lines) {
-          discard editor->onTextEvent(context, r, *it);
-          if (it.index < lines.size() - 1)
-            data->cursor = data^.buffer.onEnter(data->getVisibleCursor(&data^.buffer), false);
+        if (data->selectionStart) {
+          data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
+          data->selectionStart = null;
         }
+        const lines = breakLines(context.canvas->getClipboard());
+        const oldCursor = data^.cursor;
+        const textCopy = data^.buffer.text.copy();
+        for (it : lines) {
+          data^.cursor = data^.buffer.onTextNoHistory(*it, data->getVisibleCursor(&data^.buffer));
+          if (it.index < lines.size() - 1)
+            data->cursor = data^.buffer.onEnterNoHistory(data->getVisibleCursor(&data^.buffer), false);
+        }
+        data^.buffer.addHistory(move(textCopy), oldCursor, data^.cursor);
+        scrollAfterCursorMoved(data, context.canvas->getTextSize(" ", editor->fontSize), r);
       } else
         return false;
     }
@@ -427,4 +435,3 @@ export bool onTextEvent(EditorUI* editor, UIContext context, rectangle* r, strin
 
 export void destruct(EditorUI*) {
 }
-
