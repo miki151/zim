@@ -65,6 +65,14 @@ Def FontSize 17 End
         }
       })
     })
+    using "file_results" position(BOTTOM_STRETCHED, max_height 544 {
+      fill(0 0 0)
+      frame(1, 255 255 255)
+      margins(1, list {
+        using "selected" fill(UnsavedColor)
+        using "text" text(20, 255 255 255)
+      })
+    })
   }
   using "prompt_text" key_handler(null)
   using "prompt_text" position(CENTER, width 400 height 80 {
@@ -108,7 +116,7 @@ Def FontSize 17 End
   using "search_callback" key_handler(F DOWN {LCTRL} )
   using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
   using "search_paste_callback" key_handler(V DOWN {LCTRL} )
-  using "line_search_callback" key_handler(K DOWN {LCTRL} )
+  using "file_search_callback" key_handler(K DOWN {LCTRL} )
   using "location_search_callback" key_handler(D DOWN {LCTRL} )
   using "open_file_callback" key_handler(O DOWN {LCTRL} )
   using "navigate_back_callback" key_handler(LEFT DOWN {LALT} )
