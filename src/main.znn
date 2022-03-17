@@ -360,6 +360,25 @@ void doFileSearch(AllState mutable* allState, string text) {
   allState^.overlayInfo = OverlayInfo::file(SearchInfo(0, 0, text, move(fileResults)));
 }
 
+void searchAndReplace(AllState mutable* allState, string pattern, string replace) {
+  const data = allState^.getEditorData();
+  data^.buffer.addHistory(data^.cursor, data^.cursor);
+  for (line : data^.buffer.text)
+    *line = line^.replace(&pattern, &replace);
+}
+
+pair<string, string>? breakIntoPatternAndReplace(string text) {
+  for (i : range(0, text.size())) {
+    if (text[i] == '\\') {
+      ++i;
+      continue;
+    }
+    if (text[i] == '/')
+      return pair(text.substring(0, i), text.substring(i + 1, text.size() - i - 1));
+  }
+  return null;
+}
+
 void addOverlayCallbacks(AllState mutable* allState) {
   allState^.uiData.erase(&"location_results_up");
   allState^.uiData.erase(&"location_results_down");
@@ -378,8 +397,12 @@ void addOverlayCallbacks(AllState mutable* allState) {
         }.box_as<UICallback>().box_as<any>());
         allState^.uiData.insert("search_confirm", [allState, &search]() {
           allState^.addCursorHistory();
-          allState^.lastSearchedText = search;
-          allState^.getEditorState()->searchedText = search;
+          if (const p = breakIntoPatternAndReplace(search))
+            allState^.searchAndReplace(p^.first, p^.second);
+          else {
+            allState^.lastSearchedText = search;
+            allState^.getEditorState()->searchedText = search;
+          }
           allState^.overlayInfo = null;
         }.box_as<UICallback>().box_as<any>());
         allState^.uiData.insert("search_entry", [allState, &search](TextCallbackParam param) {
