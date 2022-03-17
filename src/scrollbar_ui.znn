@@ -13,8 +13,8 @@ export void render(ScrollbarUI* ui, UIContext context, rectangle* r) {
   const textSize = context.canvas->getTextSize(" ", ui->fontSize);
   const visibleLines = r->height() / textSize.y;
   const numLines = data->buffer.text.size();
-  const startBar = r->v1.y + min(r->v2.y, r->height() * data->scrollPos / numLines);
-  const endBar = r->v1.y + min(r->v2.y, r->height() * (data->scrollPos + visibleLines) / numLines);
+  const startBar = r->v1.y + min(r->v2.y, r->height() * data->scrollPos.y / numLines);
+  const endBar = r->v1.y + min(r->v2.y, r->height() * (data->scrollPos.y + visibleLines) / numLines);
   if (numLines > visibleLines)
     context.canvas->fillRectangle(&rectangle(vec2(r->v1.x, startBar), vec2(r->v2.x, endBar)), &ui->color);
 }

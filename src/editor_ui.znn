@@ -57,7 +57,7 @@ export EditorUIState() {
 export struct EditorUIData {
   Buffer buffer;
   vec2 cursor;
-  int scrollPos;
+  vec2 scrollPos;
   vec2? selectionStart;
   Highlighter* highlighter;
 };
@@ -77,8 +77,8 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
       swap(&startPos, &endPos);
     const origStartLine = startPos.y;
     const renderLine = [&] (int line, int px, int kx) {
-      const pos = r->v1 + vec2(px, (line - data->scrollPos)).pairwise_mult(textSize);
-      const pos2 = r->v1 + vec2(kx, (line + 1 - data->scrollPos)).pairwise_mult(textSize);
+      const pos = r->v1 + (vec2(px, line) - data->scrollPos).pairwise_mult(textSize);
+      const pos2 = r->v1 + (vec2(kx, line) + vec2(1, 1) - data->scrollPos).pairwise_mult(textSize);
       context.canvas->fillRectangle(&rectangle(pos, pos2), &editor->selectionColor);
     };
     while (startPos.y <= endPos.y) {
@@ -95,8 +95,8 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
   if (state->searchedPos) {
     const line = min(max(0, state->searchedPos^.y), data^.buffer.text.size() - 1);
     data^.cursor = vec2(state^.searchedPos^.x, line);
-    if ((line - data->scrollPos) * textSize.y > r->height() || line < data->scrollPos)
-      data->scrollPos = max(0, line - r->height() / (2 * textSize.y));
+    if ((line - data->scrollPos.y) * textSize.y > r->height() || line < data->scrollPos.y)
+      data->scrollPos = vec2(0, max(0, line - r->height() / (2 * textSize.y)));
     state->searchedPos = null;
   } else
   if (state->searchedText) {
@@ -106,8 +106,8 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
       if (const index = data^.buffer.text[line].find(beginPos, &*state->searchedText)) {
         data^.selectionStart = vec2(*index, line);
         data^.cursor = vec2(*index + state->searchedText^.size(), line);
-        if ((line - data->scrollPos) * textSize.y > r->height() || line < data->scrollPos)
-          data->scrollPos = max(0, line - r->height() / (2 * textSize.y));
+        if ((line - data->scrollPos.y) * textSize.y > r->height() || line < data->scrollPos.y)
+          data->scrollPos = vec2(0, max(0, line - r->height() / (2 * textSize.y)));
         state->searchedText = null;
         break;
       }
@@ -127,21 +127,21 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
   scrollToSearchedText(context, r, textSize);
-  while (data^.scrollPos > 0 &&
-      r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos) < r^.v2.y)
-    --data->scrollPos;
+  while (data^.scrollPos.y > 0 &&
+      r^.v1.y + textSize.y * (data^.buffer.text.size() - data->scrollPos.y) < r^.v2.y - 50)
+    --data->scrollPos.y;
   renderSelection(editor, context, r, textSize);
   const selected = getSelectedTextInLine(data);
   mutable highlighterState = data^.highlighter^.getInitialState();
-  for (line : range(data->scrollPos, data^.buffer.text.size())) {
-    const pos = r->v1 + vec2(0, (line - data->scrollPos) * textSize.y);
+  for (line : range(data->scrollPos.y, data^.buffer.text.size())) {
+    const pos = r->v1 + (vec2(0, line) - data^.scrollPos).pairwise_mult(textSize);
     if (pos.y > r->v2.y)
       break;
     const lineStr = &data^.buffer.text[line];
     if (selected)
       for (ind = lineStr^.find(&*selected); !!ind; ind = lineStr^.find(*ind + 1, &*selected))
         if (line != data^.cursor.y || (*ind != data^.cursor.x && *ind != data^.selectionStart^.x)) {
-          const spos = r->v1 + textSize.pairwise_mult(vec2(*ind, line) - vec2(0, data->scrollPos));
+          const spos = r->v1 + textSize.pairwise_mult(vec2(*ind, line) - data->scrollPos);
           context.canvas->fillRectangle(&rectangle(spos, spos + vec2(selected^.size() * textSize.x, textSize.y)),
               &editor->selectionMirrorColor);
         }
@@ -154,7 +154,7 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
       length += content.size();
     }
   }
-  const cursorPos = r->v1 + textSize.pairwise_mult(data->getVisibleCursor(&data^.buffer) - vec2(0, data->scrollPos));
+  const cursorPos = r->v1 + textSize.pairwise_mult(data->getVisibleCursor(&data^.buffer) - data->scrollPos);
   context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &editor->textColor);
 }
 
@@ -326,16 +326,24 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       return false;
     }
   }
+  scrollAfterCursorMoved(data, textSize, r);
+  return true;
+}
+
+void scrollAfterCursorMoved(EditorUIData mutable* data, vec2 textSize, rectangle* r) {
   while (true) {
-    const cursorPos = r->v1.y + textSize.y * (data->getVisibleCursor(&data^.buffer).y - data->scrollPos);
-    if (data->scrollPos > 0 && cursorPos < r->v1.y + 20)
-      --data->scrollPos;
-    else if (cursorPos > r->v2.y - textSize.y)
-      ++data->scrollPos;
+    const cursorPos = r->v1 + textSize.pairwise_mult(data->getVisibleCursor(&data^.buffer)- data->scrollPos);
+    if (data->scrollPos.y > 0 && cursorPos.y < r->v1.y + 20)
+      --data->scrollPos.y;
+    else if (cursorPos.y > r->v2.y - textSize.y)
+      ++data->scrollPos.y;
+    else if (data->scrollPos.x > 0 && cursorPos.x < r->v1.x + 20)
+      --data->scrollPos.x;
+    else if (cursorPos.x > r->v2.x - textSize.x)
+      ++data->scrollPos.x;
     else
       break;
   }
-  return true;
 }
 
 export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mouse_event* event) {
@@ -345,7 +353,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
     case (MOUSE_MOVEMENT) {
       if (state->mouseSelection) {
         const textSize = context.canvas->getTextSize(" ", editor->fontSize);
-        data->cursor = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
+        data->cursor = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
         data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
         data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
       }
@@ -362,7 +370,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
     case (LEFT) {
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       const curTime = current_time_milli();
-      const clickPos = (event->pos - r->v1).pairwise_div(textSize) + vec2(0, data->scrollPos);
+      const clickPos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
       state^.addCursorHistory(data^.cursor, data^.buffer.path);
       data->cursor.y = min(data->buffer.text.size() - 1, clickPos.y);
       data->cursor.x = min(data->buffer.text[data->cursor.y].size(), clickPos.x);
@@ -394,10 +402,10 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       return true;
     }
     case (WHEEL_UP) {
-      data->scrollPos = max(0, data->scrollPos - editor->mouseWheelStep);
+      data->scrollPos.y = max(0, data->scrollPos.y - editor->mouseWheelStep);
     }
     case (WHEEL_DOWN) {
-      data->scrollPos += editor->mouseWheelStep;
+      data->scrollPos.y += editor->mouseWheelStep;
     }
     default {
       return false;
@@ -406,13 +414,14 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
   return true;
 }
 
-export bool onTextEvent(EditorUI*, UIContext context, rectangle*, string text) {
+export bool onTextEvent(EditorUI* editor, UIContext context, rectangle* r, string text) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   if (data->selectionStart) {
     data->cursor = data^.buffer.erase(*data->selectionStart, data->getVisibleCursor(&data^.buffer));
     data->selectionStart = null;
   }
   data->cursor = data^.buffer.onText(text, data->getVisibleCursor(&data^.buffer));
+  scrollAfterCursorMoved(data, context.canvas->getTextSize(" ", editor->fontSize), r);
   return true;
 }
 

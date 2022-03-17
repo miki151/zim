@@ -252,7 +252,7 @@ void addPermanentCallbacks(AllState mutable* allState) {
           allState^.editorData.push_back(EditorUIData(
             Buffer(*file, *open_file_r(*file)^.read_content()),
             vec2(0, 0),
-            0,
+            vec2(0, 0),
             null,
             &allState^.highlighter
           ));
@@ -545,7 +545,7 @@ int main(string[] args) {
     allState.editorData.push_back(EditorUIData(
       Buffer(*path, *open_file_r(*path)^.read_content()),
       vec2(0, 0),
-      0,
+      vec2(0, 0),
       null,
       &allState.highlighter
     ));
