@@ -330,6 +330,19 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else
         return false;
     }
+    case (I) {
+      if (lctrl) {
+        for (lineInd = data^.buffer.text.size() - 1; lineInd >= 0; --lineInd) {
+          const line = &data^.buffer.text[lineInd];
+          if (line^.starts_with(&"#include ") || line^.starts_with(&"import ")) {
+            state^.addCursorHistory(data^.cursor, data^.buffer.path);
+            data^.cursor = vec2(line^.size(), lineInd);
+            break;
+          }
+        }
+        return true;
+      }
+    }
     default {
       return false;
     }

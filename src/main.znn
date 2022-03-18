@@ -330,9 +330,9 @@ void addPermanentCallbacks(AllState mutable* allState) {
     const suffix1 = ".cpp";
     const suffix2 = ".h";
     const toPath = [&] -> string? {
-      if (curPath.suffix(suffix1.size()) == suffix1)
+      if (curPath.ends_with(&suffix1))
         return curPath.prefix(curPath.size() - suffix1.size()) + suffix2;
-      if (curPath.suffix(suffix2.size()) == suffix2)
+      if (curPath.ends_with(&suffix2))
         return curPath.prefix(curPath.size() - suffix2.size()) + suffix1;
       return null;
     }();
