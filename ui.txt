@@ -121,4 +121,5 @@ Def FontSize 17 End
   using "open_file_callback" key_handler(O DOWN {LCTRL} )
   using "navigate_back_callback" key_handler(LEFT DOWN {LALT} )
   using "navigate_forward_callback" key_handler(RIGHT DOWN {LALT} )
+  using "switch_to_header_callback" key_handler(F4 DOWN {} )
 }
