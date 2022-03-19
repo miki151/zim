@@ -32,6 +32,7 @@ Def FontSize 17 End
           selectionColor = UnsavedColor
           selectionMirrorColor = 70 30 30
           mouseWheelStep = 4
+          bracketHighlightColor = 100 100 50
           syntaxColors = {
             DEFAULT 255 255 255
             KEYWORD 255 255 0

@@ -14,6 +14,7 @@ struct EditorUI {
   color selectionColor;
   color selectionMirrorColor;
   color textColor;
+  color bracketHighlightColor;
   int mouseWheelStep;
   enum_map<TokenType, color> syntaxColors;
 };
@@ -116,11 +117,71 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
 }
 
 export string? getSelectedTextInLine(EditorUIData* data) {
-  if (!!data^.selectionStart && data^.cursor.y == data^.selectionStart^.y) {
+  if (!!data^.selectionStart && data^.cursor.y == data^.selectionStart^.y &&
+      data^.cursor.x != data^.selectionStart^.x) {
     return data^.buffer.text[data^.cursor.y].substring(
         min(data^.selectionStart^.x, data^.cursor.x), abs(data^.selectionStart^.x - data^.cursor.x));
   }
   return null;
+}
+
+vec2? findMatchingBracket(Buffer* buffer, vec2 cursor, char bracket) {
+  mutable matching = ' ';
+  if (bracket == '(')
+    matching = ')';
+  else if (bracket == '[')
+    matching = ']';
+  else if (bracket == '{')
+    matching = '}';
+  else if (bracket == ')')
+    matching = '(';
+  else if (bracket == ']')
+    matching = '[';
+  else if (bracket == '}')
+    matching = '{';
+  else
+    return null;
+  mutable cursor2 = cursor;
+  mutable cnt = 1;
+  const dir = bracket == '(' || bracket == '[' || bracket == '{' ? 1 : -1;
+  while (true) {
+    cursor2.x += dir;
+    if (cursor2.x >= buffer^.text[cursor2.y].size()) {
+      cursor2.x = 0;
+      ++cursor2.y;
+    }
+    if (cursor2.x < 0) {
+      --cursor2.y;
+      cursor2.x = buffer^.text[cursor2.y].size() - 1;
+    }
+    if (cursor2.y >= buffer^.text.size() || cursor2.y < 0)
+      break;
+    const symbol2 = buffer^.text[cursor2.y][cursor2.x];
+    if (symbol2 == bracket)
+      ++cnt;
+    else if (symbol2 == matching)
+      --cnt;
+    if (cnt == 0)
+      return cursor2;
+  }
+  return null;
+}
+
+void highlightBrackets(EditorUI* editor, EditorUIData* data, UICanvas* canvas, vec2 cursor, vec2 textSize,
+    rectangle* r) {
+  const symbol = data^.buffer.text[cursor.y][cursor.x];
+  mutable cursor1 = cursor;
+  mutable cursor2 = data^.buffer.findMatchingBracket(cursor, symbol);
+  if (!cursor2 && cursor.x > 0) {
+    cursor1 = cursor - vec2(1, 0);
+    cursor2 = data^.buffer.findMatchingBracket(cursor1, data^.buffer.text[cursor1.y][cursor1.x]);
+  }
+  if (cursor2) {
+    const pos = r->v1 + (cursor1 - data->scrollPos).pairwise_mult(textSize);
+    const pos2 = r->v1 + (*cursor2 - data->scrollPos).pairwise_mult(textSize);
+    canvas->fillRectangle(&rectangle(pos, pos + textSize), &editor->bracketHighlightColor);
+    canvas->fillRectangle(&rectangle(pos2, pos2 + textSize), &editor->bracketHighlightColor);
+  }
 }
 
 export void render(EditorUI* editor, UIContext context, rectangle* r) {
@@ -133,6 +194,9 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
   renderSelection(editor, context, r, textSize);
   const selected = getSelectedTextInLine(data);
   mutable highlighterState = data^.highlighter^.getInitialState();
+  const cursor = data->getVisibleCursor(&data^.buffer);
+  if (!selected)
+    highlightBrackets(editor, data, context.canvas, cursor, textSize, r);
   for (line : range(data->scrollPos.y, data^.buffer.text.size())) {
     const pos = r->v1 + (vec2(0, line) - data^.scrollPos).pairwise_mult(textSize);
     if (pos.y > r->v2.y)
@@ -154,7 +218,7 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
       length += content.size();
     }
   }
-  const cursorPos = r->v1 + textSize.pairwise_mult(data->getVisibleCursor(&data^.buffer) - data->scrollPos);
+  const cursorPos = r->v1 + textSize.pairwise_mult(cursor - data->scrollPos);
   context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &editor->textColor);
 }
 
