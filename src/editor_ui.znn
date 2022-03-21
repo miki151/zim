@@ -153,9 +153,11 @@ vec2? findMatchingBracket(Buffer* buffer, vec2 cursor, char bracket) {
     }
     if (cursor2.x < 0) {
       --cursor2.y;
+      if (cursor2.y < 0)
+        break;
       cursor2.x = buffer^.text[cursor2.y].size() - 1;
     }
-    if (cursor2.y >= buffer^.text.size() || cursor2.y < 0)
+    if (cursor2.y >= buffer^.text.size())
       break;
     const symbol2 = buffer^.text[cursor2.y][cursor2.x];
     if (symbol2 == bracket)
@@ -263,7 +265,16 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       }
     }
     case (HOME) {
-      data->cursor.x = 0;
+      mutable indent = 0;
+      for (c : data^.buffer.text[data^.cursor.y])
+        if (*c == ' ')
+          indent = c.index + 1;
+        else
+          break;
+      if (data^.cursor.x == indent)
+        data^.cursor.x = 0;
+      else
+        data^.cursor.x = indent;
     }
     case (END) {
       data->cursor.x = data^.buffer.text[data->cursor.y].size();
