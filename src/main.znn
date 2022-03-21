@@ -162,7 +162,8 @@ struct AllState {
   vector<EditorUIData> editorData;
   vector<int> bufferOrder;
   vector<string> paths;
-  string? lastSearchedText;
+  vector<string> searchHistory;
+  int? searchHistoryIndex;
   OverlayInfo? overlayInfo;
   SearchInfo<LocationResult>? previousLocationSearch;
   vector<box<invoke<void>>> toDo;
@@ -183,7 +184,8 @@ AllState(SDLCanvas canvas, rectangle windowBounds, vector<string> paths, Highlig
     .editorData = vector<EditorUIData>(),
     .bufferOrder = vector<int>(),
     .paths = move(paths),
-    .lastSearchedText = null,
+    .searchHistory = vector<string>(),
+    .searchHistoryIndex = null,
     .overlayInfo = null,
     .previousLocationSearch = null,
     .toDo = vector<box<invoke<void>>>(),
@@ -292,11 +294,14 @@ void addPermanentCallbacks(AllState mutable* allState) {
     if (const text = getSelectedTextInLine(editorData)) {
       allState^.addCursorHistory();
       state^.searchedText = *text;
-      allState^.lastSearchedText = *text;
+      if (allState^.searchHistory.empty() || *allState^.searchHistory.back() != *text) {
+        allState^.searchHistory.push_back(*text);
+        allState^.searchHistoryIndex = null;
+      }
     } else
-    if (allState^.lastSearchedText) {
+    if (!allState^.searchHistory.empty()) {
       allState^.addCursorHistory();
-      state^.searchedText = *allState^.lastSearchedText;
+      state^.searchedText = *allState^.searchHistory.back();
     }
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("navigate_back_callback", [allState] {
@@ -379,7 +384,8 @@ void searchAndReplace(AllState mutable* allState, string pattern, string replace
   const data = allState^.getEditorData();
   data^.buffer.addHistory(data^.cursor, data^.cursor);
   for (line : data^.buffer.text)
-    *line = line^.replace(&pattern, &replace);
+    if (const value = line^.replace(&pattern, &replace))
+      *line = *value;
 }
 
 pair<string, string>? breakIntoPatternAndReplace(string text) {
@@ -402,25 +408,50 @@ void addOverlayCallbacks(AllState mutable* allState) {
   allState^.uiData.erase(&"search_confirm");
   allState^.uiData.erase(&"search_content");
   allState^.uiData.erase(&"search_paste_callback");
+  allState^.uiData.erase(&"search_history_up_callback");
+  allState^.uiData.erase(&"search_history_down_callback");  
   allState^.uiData.erase(&"location_results");
   allState^.uiData.erase(&"file_results");
   if (allState^.overlayInfo)
     switch (*allState^.overlayInfo) {
       case (search) {
         allState^.uiData.insert("search_paste_callback", [allState, &search] {
+          if (allState^.searchHistoryIndex)
+            search = allState^.searchHistory[*allState^.searchHistoryIndex];
           search = search + allState^.canvas.getClipboard();
         }.box_as<UICallback>().box_as<any>());
+        allState^.uiData.insert("search_history_up_callback", [allState, &search] {
+          if (!allState^.searchHistory.empty()) {
+            allState^.searchHistoryIndex = max(0,
+                -1 + allState^.searchHistoryIndex ?? allState^.searchHistory.size());
+          }
+        }.box_as<UICallback>().box_as<any>());
+        allState^.uiData.insert("search_history_down_callback", [allState, &search] {
+          if (!allState^.searchHistory.empty() && !!allState^.searchHistoryIndex) {
+            if (*allState^.searchHistoryIndex >= allState^.searchHistory.size() - 1)
+              allState^.searchHistoryIndex = null;
+            else
+              allState^.searchHistoryIndex = *allState^.searchHistoryIndex + 1;
+          }
+        }.box_as<UICallback>().box_as<any>());
         allState^.uiData.insert("search_confirm", [allState, &search]() {
+          if (allState^.searchHistoryIndex)
+            search = allState^.searchHistory[*allState^.searchHistoryIndex];
+          if (allState^.searchHistory.empty() || *allState^.searchHistory.back() != search)
+            allState^.searchHistory.push_back(search);
+          allState^.searchHistoryIndex = null;
           allState^.addCursorHistory();
           if (const p = breakIntoPatternAndReplace(search))
             allState^.searchAndReplace(p^.first, p^.second);
           else {
-            allState^.lastSearchedText = search;
             allState^.getEditorState()->searchedText = search;
           }
           allState^.overlayInfo = null;
         }.box_as<UICallback>().box_as<any>());
         allState^.uiData.insert("search_entry", [allState, &search](TextCallbackParam param) {
+          if (allState^.searchHistoryIndex)
+            search = allState^.searchHistory[*allState^.searchHistoryIndex];
+          allState^.searchHistoryIndex = null;
           switch (param) {
             case (text) {
               search += text;
@@ -431,7 +462,9 @@ void addOverlayCallbacks(AllState mutable* allState) {
             }
           }
         }.box_as<UITextCallback>().box_as<any>());
-        allState^.uiData.insert("search_content", box_as<any>(search));
+        allState^.uiData.insert("search_content", box_as<any>(!!allState^.searchHistoryIndex
+            ? allState^.searchHistory[*allState^.searchHistoryIndex]
+            : search));
       }
       case (file) {
         allState^.uiData.insert("search_entry", [allState, &file](TextCallbackParam param) {

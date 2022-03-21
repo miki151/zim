@@ -115,6 +115,8 @@ Def FontSize 17 End
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
   using "search_callback" key_handler(F DOWN {LCTRL} )
+  using "search_history_up_callback" key_handler(UP DOWN {} )
+  using "search_history_down_callback" key_handler(DOWN DOWN {} )
   using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
   using "search_paste_callback" key_handler(V DOWN {LCTRL} )
   using "file_search_callback" key_handler(K DOWN {LCTRL} )
