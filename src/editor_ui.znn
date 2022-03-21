@@ -94,6 +94,7 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const state = context.state^.get_state<EditorUIState>();
   if (state->searchedPos) {
+    data^.selectionStart = null;
     const line = min(max(0, state->searchedPos^.y), data^.buffer.text.size() - 1);
     data^.cursor = vec2(state^.searchedPos^.x, line);
     if ((line - data->scrollPos.y) * textSize.y > r->height() || line < data->scrollPos.y)
