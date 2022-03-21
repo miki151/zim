@@ -94,10 +94,10 @@ Def FontSize 17 End
       using "text" text(20, 255 255 255)
     })
   })
-  using "search_content" position(BOTTOM_RIGHT, width 400 height 50 {
+  using "search_content" position(BOTTOM_RIGHT, {
     fill(BorderColor)
     frame(1, 255 255 255)
-    position(CENTER, width 350 height 34 {
+    margins(10, min_width 350 {
       fill(0 0 0)
       margins(2, horizontal { text(20, 255 255 255) width 1 frame(1, 255 255 255)})
     })
