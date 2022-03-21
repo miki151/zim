@@ -1,4 +1,4 @@
-export import "ui.znn";
+export import "ui/ui.znn";
 import "std/vector.znn";
 import "std/io.znn";
 export import "buffer.znn";

@@ -1,5 +1,5 @@
 
-export import "color.znn";
+export import "ui/color.znn";
 export import "std/vector.znn";
 export import "std/enum.znn";
 import "std/io.znn";

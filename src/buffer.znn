@@ -1,6 +1,6 @@
 
 export import "std/vector.znn";
-export import "vec2.znn";
+export import "ui/vec2.znn";
 import "std/math.znn";
 
 export struct HistoryElem {
