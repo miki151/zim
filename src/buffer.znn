@@ -20,7 +20,7 @@ export struct LastEditInfo {
 };
 
 export struct Buffer {
-  string path;
+  int index;
   vector<string> text;
   vector<string> origText;
   vector<HistoryElem> history;
@@ -28,10 +28,10 @@ export struct Buffer {
   LastEditInfo? lastEdit;
 };
 
-export Buffer(string path, string content) {
+export Buffer(int index, string content) {
   const lines = breakLines(move(content));
   return Buffer::Buffer(
-      path,
+      index,
       lines.copy(),
       lines.copy(),
       vector<HistoryElem>(),

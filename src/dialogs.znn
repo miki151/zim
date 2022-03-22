@@ -21,3 +21,12 @@ export vector<string> getOpenFiles(string title) {
     return ret;
   }
 }
+
+export string? getSavePath(string title) {
+  mutable string? ret = null;
+  embed {
+    if (auto result = tinyfd_saveFileDialog(title.data(), nullptr, 0, nullptr, nullptr))
+      ret = zenon_string::owned(result);
+  }
+  return move(ret);
+}

@@ -28,16 +28,16 @@ ClickEvent implicit_copy(ClickEvent*) = default;
 
 export struct CursorData {
   vec2 pos;
-  string path;
+  int bufferIndex;
 };
 
-export void addCursorHistory(EditorUIState mutable* state, vec2 pos, string path) {
-  state^.cursorHistory.push_back(CursorData(pos, move(path)));
+export void addCursorHistory(EditorUIState mutable* state, vec2 pos, int bufferIndex) {
+  state^.cursorHistory.push_back(CursorData(pos, bufferIndex));
   state^.cursorForward.clear();
 }
 
-export void addCursorForward(EditorUIState mutable* state, vec2 pos, string path) {
-  state^.cursorForward.push_back(CursorData(pos, move(path)));
+export void addCursorForward(EditorUIState mutable* state, vec2 pos, int bufferIndex) {
+  state^.cursorForward.push_back(CursorData(pos, bufferIndex));
 }
 
 export struct EditorUIState {
@@ -286,11 +286,11 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       data->cursor.y = min(data^.buffer.text.size() - 1, data->cursor.y + 1);
     }
     case (PAGE_UP) {
-      state^.addCursorHistory(data^.cursor, data^.buffer.path);
+      state^.addCursorHistory(data^.cursor, data^.buffer.index);
       data->cursor.y = max(0, data->cursor.y - r->height() / textSize.y);
     }
     case (PAGE_DOWN) {
-      state^.addCursorHistory(data^.cursor, data^.buffer.path);
+      state^.addCursorHistory(data^.cursor, data^.buffer.index);
       data->cursor.y = min(data^.buffer.text.size() - 1, data->cursor.y + r->height() / textSize.y);
     }
     case (TAB) {
@@ -411,7 +411,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         for (lineInd = data^.buffer.text.size() - 1; lineInd >= 0; --lineInd) {
           const line = &data^.buffer.text[lineInd];
           if (line^.starts_with(&"#include ") || line^.starts_with(&"import ")) {
-            state^.addCursorHistory(data^.cursor, data^.buffer.path);
+            state^.addCursorHistory(data^.cursor, data^.buffer.index);
             data^.cursor = vec2(line^.size(), lineInd);
             break;
           }
@@ -468,7 +468,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       const curTime = current_time_milli();
       const clickPos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
-      state^.addCursorHistory(data^.cursor, data^.buffer.path);
+      state^.addCursorHistory(data^.cursor, data^.buffer.index);
       data->cursor.y = min(data->buffer.text.size() - 1, clickPos.y);
       data->cursor.x = min(data->buffer.text[data->cursor.y].size(), clickPos.x);
       if (curTime - state->previousLeftClick.time < 500 && clickPos == state->previousLeftClick.cursor) {
