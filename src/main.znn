@@ -231,6 +231,23 @@ void switchBufferUpCallback(AllState mutable* allState) {
   }
 }
 
+void doSearchRepeat(AllState mutable* allState, bool reverse) {
+  const state = allState^.uiState.get_state<EditorUIState>();
+  const editorData = allState^.getEditorData();
+  if (const text = getSelectedTextInLine(editorData)) {
+    allState^.addCursorHistory();
+    state^.searchedText = SearchedTextInfo(*text, reverse);
+    if (allState^.searchHistory.empty() || *allState^.searchHistory.back() != *text) {
+      allState^.searchHistory.push_back(*text);
+      allState^.searchHistoryIndex = null;
+    }
+  } else
+  if (!allState^.searchHistory.empty()) {
+    allState^.addCursorHistory();
+    state^.searchedText = SearchedTextInfo(*allState^.searchHistory.back(), reverse);
+  }
+}
+
 void addPermanentCallbacks(AllState mutable* allState) {
   allState^.uiData.insert("exit_callback", [allState] {
     if (allState^.overlayInfo) {
@@ -295,20 +312,10 @@ void addPermanentCallbacks(AllState mutable* allState) {
       allState^.doLocationSearch("");
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("search_repeat_callback", [allState] {
-    const state = allState^.uiState.get_state<EditorUIState>();
-    const editorData = allState^.getEditorData();
-    if (const text = getSelectedTextInLine(editorData)) {
-      allState^.addCursorHistory();
-      state^.searchedText = *text;
-      if (allState^.searchHistory.empty() || *allState^.searchHistory.back() != *text) {
-        allState^.searchHistory.push_back(*text);
-        allState^.searchHistoryIndex = null;
-      }
-    } else
-    if (!allState^.searchHistory.empty()) {
-      allState^.addCursorHistory();
-      state^.searchedText = *allState^.searchHistory.back();
-    }
+    doSearchRepeat(allState, false);
+  }.box_as<UICallback>().box_as<any>());
+  allState^.uiData.insert("search_reverse_repeat_callback", [allState] {
+    doSearchRepeat(allState, true);
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("navigate_back_callback", [allState] {
     allState^.toDo.push_back([allState] {
@@ -452,7 +459,7 @@ void addOverlayCallbacks(AllState mutable* allState) {
           if (const p = breakIntoPatternAndReplace(search))
             allState^.searchAndReplace(p^.first, p^.second);
           else {
-            allState^.getEditorState()->searchedText = search;
+            allState^.getEditorState()->searchedText = SearchedTextInfo(search, false);
           }
           allState^.overlayInfo = null;
         }.box_as<UICallback>().box_as<any>());

@@ -40,9 +40,14 @@ export void addCursorForward(EditorUIState mutable* state, vec2 pos, int bufferI
   state^.cursorForward.push_back(CursorData(pos, bufferIndex));
 }
 
+export struct SearchedTextInfo {
+  string text;
+  bool reverse;
+};
+
 export struct EditorUIState {
   bool mouseSelection;
-  string? searchedText;
+  SearchedTextInfo? searchedText;
   vec2? searchedPos;
   ClickEvent lastLeftClick;
   ClickEvent previousLeftClick;
@@ -103,11 +108,13 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
   } else
   if (state->searchedText) {
     for (lineIndex = 0; lineIndex < data^.buffer.text.size(); ++lineIndex) {
-      const line = (lineIndex + data^.cursor.y) % data^.buffer.text.size();
-      const beginPos = lineIndex == 0 ? data^.cursor.x + 1 : 0;
-      if (const index = data^.buffer.text[line].find(beginPos, &*state->searchedText)) {
+      const numLines = data^.buffer.text.size();
+      const reverse = state^.searchedText^.reverse;
+      const line = ((reverse ? -lineIndex - 1 : lineIndex) + data^.cursor.y + numLines) % numLines;
+      const beginPos = (lineIndex == 0 && !reverse) ? data^.cursor.x + 1 : 0;
+      if (const index = data^.buffer.text[line].find(beginPos, &state^.searchedText^.text)) {
         data^.selectionStart = vec2(*index, line);
-        data^.cursor = vec2(*index + state->searchedText^.size(), line);
+        data^.cursor = vec2(*index + state^.searchedText^.text.size(), line);
         if ((line - data->scrollPos.y) * textSize.y > r->height() || line < data->scrollPos.y)
           data->scrollPos = vec2(0, max(0, line - r->height() / (2 * textSize.y)));
         state->searchedText = null;
