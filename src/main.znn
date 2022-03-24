@@ -649,6 +649,7 @@ int main(string[] args) {
   }
   allState.addPermanentCallbacks();
   while (!allState.exit) {
+    window.setTitle(allState.getBufferName(allState.currentBuffer));
     while (!allState.toDo.empty()) {
       allState.toDo.back()^^();
       discard allState.toDo.pop_back();
