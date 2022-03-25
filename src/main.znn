@@ -51,19 +51,20 @@ UIRecord createRecord(string[] names, Types... values) {
   return move(ret);
 }
 
-void setPrompt(UIRecord mutable* uiData, string question, box<invoke<void>> callback_yes,
-    box<invoke<void>> callback_no) {
+void setPrompt(AllState mutable* allState, string question, box<invoke<void>> callback_yes) {
+  const uiData = &allState^.uiData;
   uiData->insert("prompt_callback_yes", [move(callback_yes), uiData] {
     callback_yes^();
     uiData->erase(&"prompt_callback_yes");
     uiData->erase(&"prompt_callback_no");
     uiData->erase(&"prompt_text");
   }.box_as<UICallback>().box_as<any>());
-  uiData->insert("prompt_callback_no", [move(callback_no), uiData] {
-    callback_no^();
-    uiData->erase(&"prompt_callback_yes");
-    uiData->erase(&"prompt_callback_no");
-    uiData->erase(&"prompt_text");
+  uiData->insert("prompt_callback_no", [uiData, allState] {
+    allState^.toDo.push_back([uiData] {
+      uiData->erase(&"prompt_callback_yes");
+      uiData->erase(&"prompt_callback_no");
+      uiData->erase(&"prompt_text");
+    }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   uiData->insert("prompt_text", question.box_as<any>());
 }
@@ -150,12 +151,7 @@ struct NextBufferInfo {
 };
 
 struct AllState {
-  SDLCanvas canvas;
-  rectangle uiBounds;
-  bool exit;
   UIRecord uiData;
-  bool flushEvents;
-  SDLEventsState eventsState;
   UIState uiState;
   int currentBuffer;
   NextBufferInfo? nextBuffer;
@@ -170,14 +166,9 @@ struct AllState {
   Highlighter highlighter;
 };
 
-AllState(SDLCanvas canvas, rectangle windowBounds, vector<string?> paths, Highlighter highlighter) {
+AllState(vector<string?> paths, Highlighter highlighter) {
   return AllState::AllState(
-    .canvas = move(canvas),
-    .uiBounds = move(windowBounds),
-    .exit = false,
     .uiData = UIRecord(),
-    .flushEvents = false,
-    .eventsState = SDLEventsState(),
     .uiState = UIState(),
     .currentBuffer = 0,
     .nextBuffer = null,
@@ -248,19 +239,13 @@ void doSearchRepeat(AllState mutable* allState, bool reverse) {
   }
 }
 
-void addPermanentCallbacks(AllState mutable* allState) {
-  allState^.uiData.insert("exit_callback", [allState] {
+void addPermanentCallbacks(AllState mutable* allState, bool mutable* exit) {
+  allState^.uiData.insert("exit_callback", [allState, exit] {
     if (allState^.overlayInfo) {
       allState^.overlayInfo = null;
       return;
     } else
-      setPrompt(&allState^.uiData, "Exit?",
-          [allState] { allState^.exit = true; }.box_as<invoke<void>>(),
-          [allState] {
-            allState^.flushEvents = true;
-            discard allState^.eventsState.getEvents();
-          }.box_as<invoke<void>>()
-      );
+      setPrompt(allState, "Exit?", [exit] { *exit = true; }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   allState^.uiData.insert("open_file_callback", [allState] {
     allState^.toDo.push_back([allState] {
@@ -415,7 +400,7 @@ pair<string, string>? breakIntoPatternAndReplace(string text) {
   return null;
 }
 
-void addOverlayCallbacks(AllState mutable* allState) {
+void addOverlayCallbacks(AllState mutable* allState, UICanvas* canvas) {
   allState^.uiData.erase(&"location_results_up");
   allState^.uiData.erase(&"location_results_down");
   allState^.uiData.erase(&"location_results_confirm");
@@ -430,10 +415,10 @@ void addOverlayCallbacks(AllState mutable* allState) {
   if (allState^.overlayInfo)
     switch (*allState^.overlayInfo) {
       case (search) {
-        allState^.uiData.insert("search_paste_callback", [allState, &search] {
+        allState^.uiData.insert("search_paste_callback", [allState, &search, canvas] {
           if (allState^.searchHistoryIndex)
             search = allState^.searchHistory[*allState^.searchHistoryIndex];
-          search = search + allState^.canvas.getClipboard();
+          search = search + canvas^.getClipboard();
         }.box_as<UICallback>().box_as<any>());
         allState^.uiData.insert("search_history_up_callback", [allState, &search] {
           if (!allState^.searchHistory.empty()) {
@@ -571,7 +556,6 @@ string getBufferName(AllState* allState, int bufferIndex) {
 }
 
 void addConditionalCallbacks(AllState mutable* allState) {
-  allState^.addOverlayCallbacks();
   if (allState^.nextBuffer) {
     mutable v = vector<box<any>>();
     for (i : range(allState^.nextBuffer^.scrollPos,
@@ -619,11 +603,8 @@ int main(string[] args) {
   mutable ui = *readUIFrom(dataDir + "ui.txt");
   const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
-  const getCanvas = [&] {
-    const textTexture = *window.make_target_texture(vec2(100, 100));
-    const gameSprites = hash_map<string, sdl_texture>();
-    return SDLCanvas(&window, &font, move(gameSprites), move(textTexture));
-  };
+  const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
+      *window.make_target_texture(vec2(100, 100)));
   mutable paths = vector<string?>();
   for (elem : flags.all)
     paths.push_back(get_canonical_path(*elem));
@@ -631,9 +612,8 @@ int main(string[] args) {
     mutable string? a = null;
     paths.push_back(move(a));
   }
+  mutable uiBounds = rectangle(vec2(0, 0), window.size());
   mutable allState = AllState(
-      getCanvas(),
-      rectangle(vec2(0, 0), window.size()),
       move(paths),
       Highlighter("/usr/share/source-highlight/", "zenon.lang")
   );
@@ -647,45 +627,43 @@ int main(string[] args) {
       &allState.highlighter
     ));
   }
-  allState.addPermanentCallbacks();
-  while (!allState.exit) {
+  mutable exit = false;
+  allState.addPermanentCallbacks(&exit);
+  mutable eventsState = SDLEventsState();
+  while (!exit) {
     window.setTitle(allState.getBufferName(allState.currentBuffer));
     while (!allState.toDo.empty()) {
       allState.toDo.back()^^();
       discard allState.toDo.pop_back();
     }
     allState.addConditionalCallbacks();
-    const context = UIContext(&allState.canvas, &allState.uiData, &allState.uiState, 0.1);
-    for (event : allState.eventsState.getEvents()) {
-      if (allState.exit || allState.flushEvents) {
-        allState.flushEvents = false;
-        break;
-      }
+    allState.addOverlayCallbacks(&canvas);
+    const context = UIContext(&canvas, &allState.uiData, &allState.uiState, 0.1);
+    for (event : eventsState.getEvents()) {
       switch (*event) {
         case (windowResized) {
-          allState.uiBounds = rectangle(vec2(0, 0), windowResized);
+          uiBounds = rectangle(vec2(0, 0), windowResized);
         }
         case (quit) { return 0; }
         case (key) {
           if (key.key == key_type::F1 && key.type == key_event_type::DOWN) {
-            allState.canvas = getCanvas();
             if (const res = readUIFrom(dataDir + "ui.txt"))
               ui = *move(res);
             else
               printf(res.get_error());
             } else
-            discard ui^.onKeyEvent(context, &allState.uiBounds, &key);
+            discard ui^.onKeyEvent(context, &uiBounds, &key);
         }
         case (mouse) {
-          discard ui^.onMouseEvent(context, &allState.uiBounds, &mouse);
+          discard ui^.onMouseEvent(context, &uiBounds, &mouse);
         }
         case (text) {
-          discard ui^.onTextEvent(context, &allState.uiBounds, text);
+          discard ui^.onTextEvent(context, &uiBounds, text);
         }
         default {}
       }
     }
-    ui^.render(context, &allState.uiBounds);
+    ui^.render(context, &uiBounds);
     window.update();
   }
   return 0;
