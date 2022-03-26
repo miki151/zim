@@ -473,6 +473,8 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       }
     }
     case (LEFT) {
+      if (!r^.contains(&event^.pos))
+        return false;
       const textSize = context.canvas->getTextSize(" ", editor->fontSize);
       const curTime = current_time_milli();
       const clickPos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
@@ -504,7 +506,6 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       }
       state->previousLeftClick = state->lastLeftClick;
       state->lastLeftClick = ClickEvent(curTime, clickPos);
-      return true;
     }
     case (WHEEL_UP) {
       data->scrollPos.y = max(0, data->scrollPos.y - editor->mouseWheelStep);
