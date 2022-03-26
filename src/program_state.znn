@@ -366,6 +366,8 @@ pair<string, string>? breakIntoPatternAndReplace(string text) {
   for (i : range(0, text.size())) {
     if (text[i] == '\\') {
       ++i;
+      if (i >= text.size())
+        break;
       continue;
     }
     if (text[i] == '/')
