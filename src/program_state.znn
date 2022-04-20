@@ -375,9 +375,14 @@ void doFileSearch(ProgramState mutable* programState, string text) {
 void searchAndReplace(ProgramState mutable* programState, string pattern, string replace) {
   const data = programState^.getEditorData();
   data^.buffer.addHistory(data^.cursor, data^.cursor);
-  for (line : data^.buffer.text)
-    if (const value = line^.replace(&pattern, &replace))
-      *line = *value;
+  if (data^.selectionStart) {
+    for (ind : range(min(data^.selectionStart^.y, data^.cursor.y), max(data^.selectionStart^.y, data^.cursor.y) + 1))
+      if (const value = data^.buffer.text[ind].replace(&pattern, &replace))
+        data^.buffer.text[ind] = *value;
+  } else
+    for (line : data^.buffer.text)
+      if (const value = line^.replace(&pattern, &replace))
+        *line = *value;
 }
 
 pair<string, string>? breakIntoPatternAndReplace(string text) {
