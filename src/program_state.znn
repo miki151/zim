@@ -336,6 +336,24 @@ void doLocationSearch(ProgramState mutable* programState, string text) {
             break;
         }
     }
+  locationResults.sort(&[&](LocationResult* r1, LocationResult* r2) {
+    const isStructDef = [&](LocationResult* r) {
+      return r^.text.ends_with(&"\{") && (!!r^.text.find("struct " + text) || !!r^.text.find("class " + text));
+    };
+    const isStructDef1 = isStructDef(r1);
+    const isStructDef2 = isStructDef(r2);
+    if (isStructDef1 != isStructDef2)
+      return isStructDef1;
+    const isMethod1 = !!r1^.text.find("::");
+    const isMethod2 = !!r2^.text.find("::");
+    if (isMethod1 != isMethod2)
+      return isMethod1;
+    const isHeader1 = programState^.getBufferName(r1^.bufferIndex).ends_with(&".h");
+    const isHeader2 = programState^.getBufferName(r2^.bufferIndex).ends_with(&".h");
+    if (isHeader1 != isHeader2)
+      return isHeader1;
+    return false;
+  });
   programState^.previousLocationSearch = SearchInfo(0, 0, text, move(locationResults));
   programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
 }
