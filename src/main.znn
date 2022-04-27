@@ -2,6 +2,8 @@ import "std/io.znn";
 import "std/flags.znn";
 import "std/panic.znn";
 import "std/vector.znn";
+import "std/box.znn";
+import "ui/data.znn";
 
 import "ui/ui.znn";
 import "ui/reader.znn";
@@ -48,7 +50,7 @@ int main(string[] args) {
   *sdl_init();
   const dataDir = sdl_data_directory_path();
   mutable ui = *readUIFrom(dataDir + "ui.txt");
-  const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
+  const window = *sdl_create_window(vec2(1280, 720), "ZIM", false);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
       *window.make_target_texture(vec2(100, 100)));
@@ -76,6 +78,14 @@ int main(string[] args) {
   }
   mutable exit = false;
   programState.addPermanentCallbacks(&exit);
+  programState.uiData.insert("ui_refresh_callback", [&] {
+    programState.toDo.push_back([&] {
+      if (const res = readUIFrom(dataDir + "ui.txt"))
+        ui = *move(res);
+      else
+        printf(res.get_error());
+    }.box_as<invoke<void>>());
+  }.box_as<UICallback>().box_as<any>());
   mutable eventsState = SDLEventsState();
   while (!exit) {
     window.setTitle(programState.getBufferName(programState.currentBuffer));
@@ -93,13 +103,7 @@ int main(string[] args) {
         }
         case (quit) { return 0; }
         case (key) {
-          if (key.key == key_type::F1 && key.type == key_event_type::DOWN) {
-            if (const res = readUIFrom(dataDir + "ui.txt"))
-              ui = *move(res);
-            else
-              printf(res.get_error());
-            } else
-            discard ui^.onKeyEvent(context, &uiBounds, &key);
+          discard ui^.onKeyEvent(context, &uiBounds, &key);
         }
         case (mouse) {
           discard ui^.onMouseEvent(context, &uiBounds, &mouse);
