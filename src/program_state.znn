@@ -28,11 +28,11 @@ void setPrompt(ProgramState mutable* programState, string question, box<invoke<v
   uiData->insert("prompt_text", question.box_as<any>());
 }
 
-bool isContentUpdated(ProgramState* programState) {
+bool isContentUnsaved(ProgramState* programState) {
   for (elem : programState^.editorData)
     if (!programState^.paths[elem.index] || elem^.buffer.isModified())
-      return false;
-  return true;
+      return true;
+  return false;
 }
 
 template <T>
@@ -213,7 +213,7 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
           programState^.paths.push_back(*file);
           programState^.bufferOrder.insert(0, programState^.paths.size() - 1);
           programState^.editorData.push_back(EditorUIData(
-            Buffer(programState^.paths.size() - 1, *open_file_r(*file)^.read_content()),
+            Buffer(programState^.paths.size() - 1, *get_modification_time(*file), *open_file_r(*file)^.read_content()),
             vec2(0, 0),
             vec2(0, 0),
             null,
@@ -230,7 +230,7 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       programState^.paths.push_back(move(p));
       programState^.bufferOrder.insert(0, programState^.paths.size() - 1);
       programState^.editorData.push_back(EditorUIData(
-        Buffer(programState^.paths.size() - 1, ""),
+        Buffer(programState^.paths.size() - 1, 0, ""),
         vec2(0, 0),
         vec2(0, 0),
         null,
@@ -246,13 +246,16 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
     for (elem : programState^.editorData) {
       const path = &programState^.paths[elem.index];
       if (elem^.buffer.isModified() || !*path) {
-        if (!*path)
+        if (!*path) {
           *path = getSavePath("Save file:");
-        if (*path)
+        }
+        if (*path) {
           if (const file = open_file_w(**path)) {
             file->printf(elem->buffer.joinLines());
             elem->buffer.origText = elem->buffer.text.copy();
           }
+          elem^.buffer.origLastModified = *get_modification_time(**path);
+        }
       }
     }
   }.box_as<UICallback>().box_as<any>());
@@ -583,7 +586,7 @@ export void addConditionalCallbacks(ProgramState mutable* programState) {
     programState^.uiData.erase(&"switch_buffer_callback2");
     programState^.uiData.erase(&"next_buffer_path");
   }
-  if (isContentUpdated(programState))
+  if (!isContentUnsaved(programState))
     programState^.uiData.insert("no_changes", 1.box_as<any>());
   else
     programState^.uiData.erase(&"no_changes");

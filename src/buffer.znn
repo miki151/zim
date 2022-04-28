@@ -23,17 +23,19 @@ export struct Buffer {
   int index;
   vector<string> text;
   vector<string> origText;
+  milliseconds_t origLastModified;
   vector<HistoryElem> history;
   vector<HistoryElem> forward;
   LastEditInfo? lastEdit;
 };
 
-export Buffer(int index, string content) {
+export Buffer(int index, milliseconds_t origLastModified, string content) {
   const lines = breakLines(move(content));
   return Buffer::Buffer(
       index,
       lines.copy(),
       lines.copy(),
+      origLastModified,
       vector<HistoryElem>(),
       vector<HistoryElem>(),
       null);

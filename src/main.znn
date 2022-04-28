@@ -3,8 +3,9 @@ import "std/flags.znn";
 import "std/panic.znn";
 import "std/vector.znn";
 import "std/box.znn";
-import "ui/data.znn";
+import "std/time.znn";
 
+import "ui/data.znn";
 import "ui/ui.znn";
 import "ui/reader.znn";
 import "sdl/sdl.znn";
@@ -42,6 +43,25 @@ struct Flags {
   vector<string> all;
 };
 
+void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programState) {
+  for (elem : programState^.editorData)
+    if (const path = programState^.paths[elem.index]) {
+      if (const modTime = get_modification_time(*path)) {
+        if (modTime != elem^.buffer.origLastModified) {
+          elem^.buffer.origLastModified = *modTime;
+          if (elem^.buffer.origText != elem^.buffer.text &&
+              !*window^.sdl_prompt("File has been overwritten",
+                  "File {*path} has been overwritten, but has unsaved changes. Load new content, losing all changes?"))
+            continue;
+          const currentContent = breakLines(*open_file_r(*path)^.read_content());
+          elem^.buffer.origText = currentContent.copy();
+          elem^.buffer.text = move(currentContent);
+        }
+      } else
+        programState^.paths[elem.index] = null;
+    }
+}
+
 int main(string[] args) {
   const flags = *read_flags<Flags>(args);
   const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
@@ -50,7 +70,7 @@ int main(string[] args) {
   *sdl_init();
   const dataDir = sdl_data_directory_path();
   mutable ui = *readUIFrom(dataDir + "ui.txt");
-  const window = *sdl_create_window(vec2(1280, 720), "ZIM", false);
+  const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
       *window.make_target_texture(vec2(100, 100)));
@@ -69,7 +89,8 @@ int main(string[] args) {
   for (path : programState.paths) {
     programState.bufferOrder.push_back(path.index);
     programState.editorData.push_back(EditorUIData(
-      Buffer(path.index, !!*path ? *open_file_r(**path)^.read_content() : ""),
+      Buffer(path.index, !!*path ? *get_modification_time(**path) : 0,
+          !!*path ? *open_file_r(**path)^.read_content() : ""),
       vec2(0, 0),
       vec2(0, 0),
       null,
@@ -87,7 +108,12 @@ int main(string[] args) {
     }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   mutable eventsState = SDLEventsState();
+  mutable lastContentCheck = current_time_milli();
   while (!exit) {
+    if (current_time_milli() > lastContentCheck + 500) {
+      lastContentCheck = current_time_milli();
+      window.updateOutOfDateContent(&programState);
+    }
     window.setTitle(programState.getBufferName(programState.currentBuffer));
     while (!programState.toDo.empty()) {
       programState.toDo.back()^^();
