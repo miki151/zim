@@ -1,0 +1,222 @@
+import "std/io.znn";
+export import "std/hash_map.znn";
+export import "std/box.znn";
+export import "std/vector.znn";
+import "std/enum.znn";
+import "std/io.znn";
+
+import "json.znn";
+
+export embed {
+ #include "lsp_client_base.h"
+}
+
+export extern struct LspClientBase;
+
+LspClientBase getLspClientBase(string command, vector<string> args) {
+  embed_returns {
+    std::vector<std::string> argsCopy;
+    for (auto& a : args)
+      argsCopy.push_back(a.data());
+    return LspClientBase(command.data(), argsCopy);
+  }
+}
+
+export struct LspDefinitionResult {
+  int line;
+  int column;
+  string file;
+};
+
+export enum LspDiagnosticSeverity {
+  ERROR,
+  WARNING,
+  INFORMATION,
+  HINT
+};
+
+export struct LspDiagnosticLocation {
+  int startLine;
+  int startColumn;
+  int endLine;
+  int endColumn;
+  string text;
+  LspDiagnosticSeverity severity;
+};
+
+export LspDiagnosticLocation implicit_copy(LspDiagnosticLocation*) = default;
+
+export struct LspDiagnostic {
+  string file;
+  vector<LspDiagnosticLocation> locations;
+};
+
+export union LspMessage {
+  LspDefinitionResult definitionResult;
+  LspDiagnostic diagnostic;
+};
+
+export struct LspClient {
+  LspClientBase client;
+  hash_map<int, box<invoke<LspMessage, json>>> constructors;
+  int resultId;
+  hash_map<string, int> documentVersions;
+  LspMessage? lspMessage;
+};
+
+export LspClient(string command, vector<string> args) {
+  return LspClient::LspClient(
+      getLspClientBase(move(command), move(args)), 
+      hash_map<int, box<invoke<LspMessage, json>>>(),
+      0,
+      hash_map<string, int>(),
+      null
+  );
+}
+
+void sendMessage(LspClient mutable* client, string message) {
+  embed {
+    client->client.sendMessage(message.data());
+  }
+}
+
+string? readMessage(LspClient mutable* client) {
+  embed_returns {
+    if (auto msg = client->client.readMessage())
+      return zenon_string::owned(msg->data());
+  }
+  
+  return null;
+}
+
+string uriToPath(string uri) {
+  assert(uri.starts_with(&"file://"));
+  return uri.substring("file://".size());
+}
+
+export LspMessage? getMessage(LspClient mutable* client) {
+  if (const msg = client^.readMessage()) {
+    mutable j = json_parse(*msg);
+    if (j.contains("result")) {
+      const id = j["id"].get<int>();
+      if (client->constructors.contains(&id) && j["result"].size() > 0)
+        return client^.constructors.get(&id)^^(j["result"][0].copy());
+    }
+    if (j.contains("method") && j["method"] == json("textDocument/publishDiagnostics")) {
+      //printf("{j.dump(2)}\n");
+      mutable ret = vector<LspDiagnosticLocation>();
+      const file = uriToPath(j["params"]["uri"].get<string>());
+      for (elem : j["params"]["diagnostics"]) {
+        ret.push_back(LspDiagnosticLocation(
+          elem^["range"]["start"]["line"].get<int>(),
+          elem^["range"]["start"]["character"].get<int>(),
+          elem^["range"]["end"]["line"].get<int>(),
+          elem^["range"]["end"]["character"].get<int>(),
+          elem^["message"].get<string>(),
+          fromInt<LspDiagnosticSeverity>(elem^["severity"].get<int>() - 1)
+        ));
+      }
+      return LspMessage::diagnostic(LspDiagnostic(file, move(ret)));
+    }
+  }
+  return null;
+}
+
+export void sendDefinitionRequest(LspClient mutable* client, string path, int line, int column) {
+  const j = [client, path, line, column] -> json {
+    embed_returns {
+      return json {
+        {"jsonrpc", "2.0"},
+        {"id", client->resultId},
+        {"method", "textDocument/definition"},
+        {"params", {
+          {"textDocument", {
+            {"uri", "file://" + std::string(path.data())}
+          }},
+          {"position", {
+            {"line", line},
+            {"character", column}
+          }}
+        }}
+      };
+    }
+  }();
+  client^.constructors.insert(client^.resultId, [](json j) -> LspMessage {
+    return LspDefinitionResult(
+      j["range"]["start"]["line"].get<int>(),
+      j["range"]["start"]["character"].get<int>(),
+      uriToPath(j["uri"].get<string>())
+    );
+  }.box_as<invoke<LspMessage, json>>());
+  client^.sendMessage(j.dump());
+  ++client^.resultId;
+}
+
+export void sendFileChangedNotification(LspClient mutable* client, string path, string* content) {
+  if (const version = client^.documentVersions.get_maybe(&path)) {
+    mutable didOpen = json_object();
+    didOpen["jsonrpc"] = json("2.0");
+    didOpen["method"] = json("textDocument/didChange");
+    mutable params = json_object();
+    params["textDocument"]["uri"] = json("file://" + path);
+    ++**version;
+    params["textDocument"]["version"] = json(**version);
+    mutable ar = json_array();
+    ar.push_back(json_object().set("text", json(*content)));
+    params["contentChanges"] = move(ar);
+    didOpen["params"] = move(params);
+    client^.sendMessage(didOpen.dump());
+  } else
+    client^.sendFileOpenedNotification(path, content);
+}
+
+export void sendFileOpenedNotification(LspClient mutable* client, string path, string* content) {
+  client^.documentVersions.insert(path, 0);
+  mutable didOpen = json_object();
+  didOpen["jsonrpc"] = json("2.0");
+  didOpen["method"] = json("textDocument/didOpen");
+  mutable params = json_object();
+  params["textDocument"]["uri"] = json("file://" + path);
+  params["textDocument"]["version"] = json(0);
+  params["textDocument"]["languageId"] = json("cpp");
+  params["textDocument"]["text"] = json(*content);
+  didOpen["params"] = move(params);
+  client^.sendMessage(didOpen.dump());
+}
+
+export void initialize(LspClient mutable* client) {
+  const msg = [] -> json {
+    embed_returns {
+      return json {
+        {"jsonrpc", "2.0"},
+        {"method", "initialize"},
+        {"params", {
+          {"capabilities", {
+            {"textDocument", {
+              {"completion", {
+                {"completionItem", {{"snippetSupport", false}}}
+              }},
+              {"signatureHelp", {
+                {"signatureInformation", {
+                  {"parameterInformation", {{"labelOffsetSupport", true}}}}
+                }}
+              }
+            }},
+            {"workspace", {
+              {"applyEdit", true},
+              {"didChangeWatchedFiles", {
+                {"dynamicRegistration", true}
+              }}
+            }}
+          }},
+          {"rootPath", "/home/michal"},
+          {"rootUri", "file:///home/michal"},
+          {"trace", "off"}
+        }},
+        {"id", 0}
+      };
+    }
+  }();
+  client^.sendMessage(msg.dump());
+  ++client^.resultId;
+}

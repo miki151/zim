@@ -6,6 +6,7 @@ import "std/char.znn";
 import "std/time.znn";
 export import "highlighter.znn";
 export import "std/enum_map.znn";
+export import "lsp_client.znn";
 
 export [@ui_element]
 struct EditorUI {
@@ -17,6 +18,7 @@ struct EditorUI {
   color bracketHighlightColor;
   int mouseWheelStep;
   enum_map<TokenType, color> syntaxColors;
+  enum_map<LspDiagnosticSeverity, color> errorColors;
 };
 
 export struct ClickEvent {
@@ -52,12 +54,13 @@ export struct EditorUIState {
   ClickEvent lastLeftClick;
   ClickEvent previousLeftClick;
   vector<CursorData> cursorHistory;
-  vector<CursorData> cursorForward;  
+  vector<CursorData> cursorForward;
+  vec2? lastMousePos;
 };
 
 export EditorUIState() {
   return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)),
-      vector<CursorData>(), vector<CursorData>());
+      vector<CursorData>(), vector<CursorData>(), null);
 }
 
 export struct EditorUIData {
@@ -66,6 +69,7 @@ export struct EditorUIData {
   vec2 scrollPos;
   vec2? selectionStart;
   Highlighter* highlighter;
+  vector<LspDiagnosticLocation> diagnostics;
 };
 
 vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
@@ -86,6 +90,39 @@ void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 tex
       const pos = r->v1 + (vec2(px, line) - data->scrollPos).pairwise_mult(textSize);
       const pos2 = r->v1 + (vec2(kx, line) + vec2(0, 1) - data->scrollPos).pairwise_mult(textSize);
       context.canvas->fillRectangle(&rectangle(pos, pos2), &editor->selectionColor);
+    };
+    while (startPos.y <= endPos.y) {
+      renderLine(startPos.y, startPos.y == origStartLine ? startPos.x : 0,
+          startPos.y == endPos.y ? endPos.x : data^.buffer.text[startPos.y].size());
+      ++startPos.y;
+    }
+  }
+}
+
+void renderErrors(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {
+  const data = **context.data^.cast_to<EditorUIData mutable*>();
+  const state = context.state^.get_state<EditorUIState>();
+  for (diagnostic : data^.diagnostics) {
+    mutable startPos = vec2(diagnostic^.startColumn, diagnostic^.startLine);
+    mutable endPos = vec2(diagnostic^.endColumn, diagnostic^.endLine);
+    const origStartLine = startPos.y;
+    const renderLine = [&] (int line, int px, int kx) {
+      const pos = r->v1 + (vec2(px, line) + vec2(0, 1) - data->scrollPos).pairwise_mult(textSize)
+          - vec2(0, 2);
+      const pos2 = r->v1 + (vec2(kx, line) + vec2(0, 1) - data->scrollPos).pairwise_mult(textSize);
+      const errorColor = editor^.errorColors[diagnostic^.severity];
+      context.canvas->fillRectangle(&rectangle(vec2(r->v1.x, pos.y), vec2(r->v2.x, pos2.y)),
+          &color(errorColor.r / 3, errorColor.g / 3, errorColor.b / 3));
+      context.canvas->fillRectangle(&rectangle(pos, pos2), &errorColor);
+      if (!!state^.lastMousePos && state^.lastMousePos^.y == line) {
+        const lines = breakLines(diagnostic^.text);
+        const pos3 = vec2(r^.v1.x, pos.y - textSize.y * (2 + lines.size()));
+        const pos4 = vec2(r^.v2.x, pos3.y + textSize.y * lines.size());
+        context.canvas->fillRectangle(&rectangle(pos3, pos4), &color(0, 0, 0));
+        context.canvas->frameRectangle(&rectangle(pos3, pos4), &color(255, 255, 255), 1);
+        for (elem : lines)
+          context.canvas^.drawText(pos3 + vec2(5, textSize.y * elem.index), *elem, editor^.fontSize, &errorColor);
+      }
     };
     while (startPos.y <= endPos.y) {
       renderLine(startPos.y, startPos.y == origStartLine ? startPos.x : 0,
@@ -230,6 +267,7 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
   }
   const cursorPos = r->v1 + textSize.pairwise_mult(cursor - data->scrollPos);
   context.canvas->drawLine(cursorPos, cursorPos + vec2(0, textSize.y), &editor->textColor);
+  renderErrors(editor, context, r, textSize);
 }
 
 export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_event* event) {
@@ -456,8 +494,9 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   switch (event->type) {
     case (MOUSE_MOVEMENT) {
+      const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+      state^.lastMousePos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
       if (state->mouseSelection) {
-        const textSize = context.canvas->getTextSize(" ", editor->fontSize);
         data->cursor = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
         data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
         data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);

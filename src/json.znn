@@ -1,0 +1,140 @@
+export embed {
+#include "nlohmann/json.hpp"
+using nlohmann::json;
+using json_iterator = json::iterator;
+}
+
+export extern struct json;
+
+export json(int i) {
+  embed_returns {
+    json j = i;
+    return j;
+  }
+}
+
+export json(string s) {
+  embed_returns {
+    json j = s.data();
+    return j;
+  }
+}
+
+export template<T> requires (T == int || T == string)
+T get(json* j) {
+  static if (T == string) {
+    embed_returns {
+      std::string s = j->get<std::string>();
+      return zenon_string::owned(s.data());
+    }
+  } else {
+    embed_returns {
+      return j->get<T>();
+    }
+  }
+}
+
+export bool contains(json* j, string s) {
+  embed_returns {
+    return j->contains(s.data());
+  }
+}
+
+export json* operator [] (json* j, string s) {
+  embed_returns {
+    return &(*j)[s.data()];
+  }
+}
+
+export json* operator [] (json* j, int index) {
+  embed_returns {
+    return &(*j)[index];
+  }
+}
+
+export int size(json* j) {
+  embed_returns {
+    return j->size();
+  }
+}
+
+export json mutable* operator [] (json mutable* j, string s) {
+  embed_returns {
+    return &(*j)[s.data()];
+  }
+}
+
+export json set(mutable json j, string key, json value) {
+  j[key] = move(value);
+  return move(j);
+}
+
+export extern bool operator == (json*, json*);
+
+export json copy(json* j) {
+  embed_returns {
+    return *j;
+  }
+}
+
+export json json_object() {
+  embed_returns {
+    return json::object();
+  }
+}
+
+export json json_array() {
+  embed_returns {
+    return json::array();
+  }
+}
+
+export void push_back(json mutable* array, json object) {
+  embed {
+    array->push_back(std::move(object));
+  }
+}
+
+export string dump(json* j) {
+  embed_returns {
+    return zenon_string::owned(j->dump().data());
+  }
+}
+
+export string dump(json* j, int indent) {
+  embed_returns {
+    return zenon_string::owned(j->dump(indent).data());
+  }
+}
+
+export json json_parse(string s) {
+  embed_returns {
+    return json::parse(s.data());
+  }
+}
+
+export extern struct json_iterator;
+
+export json_iterator implicit_copy(json_iterator* it) {
+  embed_returns {
+    return *it;
+  }
+}
+
+export json_iterator begin(json mutable* s) {
+  embed_returns {
+    return s->begin();
+  }
+}
+
+export json_iterator end(json mutable* s) {
+  embed_returns {
+    return s->end();
+  }
+}
+
+export extern json* operator *(json_iterator* it);
+
+export extern json_iterator operator ++(json_iterator mutable* it);
+
+export extern bool operator == (json_iterator* it1, json_iterator* it2);

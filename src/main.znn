@@ -19,6 +19,7 @@ import "editor_ui.znn";
 import "scrollbar_ui.znn";
 import "highlighter.znn";
 import "program_state.znn";
+import "lsp_client.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
@@ -56,6 +57,7 @@ void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programStat
           const currentContent = breakLines(*open_file_r(*path)^.read_content());
           elem^.buffer.origText = currentContent.copy();
           elem^.buffer.text = move(currentContent);
+          elem^.buffer.lspUpdated = false;
         }
       } else
         programState^.paths[elem.index] = null;
@@ -70,6 +72,8 @@ int main(string[] args) {
   *sdl_init();
   const dataDir = sdl_data_directory_path();
   mutable ui = *readUIFrom(dataDir + "ui.txt");
+  mutable lspClient = LspClient("clangd", {"--background-index"}.as_vector());
+  lspClient.initialize();
   const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
@@ -88,17 +92,18 @@ int main(string[] args) {
   );
   for (path : programState.paths) {
     programState.bufferOrder.push_back(path.index);
+    const content = !!*path ? *open_file_r(**path)^.read_content() : "";
     programState.editorData.push_back(EditorUIData(
-      Buffer(path.index, !!*path ? *get_modification_time(**path) : 0,
-          !!*path ? *open_file_r(**path)^.read_content() : ""),
+      Buffer(path.index, !!*path ? *get_modification_time(**path) : 0, move(content)),
       vec2(0, 0),
       vec2(0, 0),
       null,
-      &programState.highlighter
+      &programState.highlighter,
+      vector<LspDiagnosticLocation>()
     ));
   }
   mutable exit = false;
-  programState.addPermanentCallbacks(&exit);
+  programState.addPermanentCallbacks(&exit, &lspClient);
   programState.uiData.insert("ui_refresh_callback", [&] {
     programState.toDo.push_back([&] {
       if (const res = readUIFrom(dataDir + "ui.txt"))
@@ -110,9 +115,11 @@ int main(string[] args) {
   mutable eventsState = SDLEventsState();
   mutable lastContentCheck = current_time_milli();
   while (!exit) {
+    programState.handleLspMessages(&lspClient);
     if (current_time_milli() > lastContentCheck + 500) {
       lastContentCheck = current_time_milli();
       window.updateOutOfDateContent(&programState);
+      programState.updateLspContent(&lspClient);
     }
     window.setTitle(programState.getBufferName(programState.currentBuffer));
     while (!programState.toDo.empty()) {

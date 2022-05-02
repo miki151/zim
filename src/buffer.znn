@@ -27,7 +27,13 @@ export struct Buffer {
   vector<HistoryElem> history;
   vector<HistoryElem> forward;
   LastEditInfo? lastEdit;
+  bool lspUpdated;
 };
+
+void onEdited(Buffer mutable* buffer, LastEditInfo? info) {
+  buffer^.lspUpdated = false;
+  buffer^.lastEdit = move(info);
+}
 
 export Buffer(int index, milliseconds_t origLastModified, string content) {
   const lines = breakLines(move(content));
@@ -38,7 +44,8 @@ export Buffer(int index, milliseconds_t origLastModified, string content) {
       origLastModified,
       vector<HistoryElem>(),
       vector<HistoryElem>(),
-      null);
+      null,
+      false);
 }
 
 export bool isModified(Buffer* buffer) {
@@ -66,7 +73,7 @@ export string joinLines(Buffer* buffer) {
 }
 
 export void changeIndent(Buffer mutable* buf, mutable vec2 start, mutable vec2 end, int amount) {
-  buf^.lastEdit = null;
+  buf^.onEdited(null);
   if (end.y < start.y)
     swap(&start, &end);
   if (end.y > start.y && end.x == 0)
@@ -110,7 +117,7 @@ export string getString(Buffer* buf, mutable vec2 startPos, mutable vec2 endPos)
 }
 
 export vec2 erase(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPos) {
-  buf^.lastEdit = null;
+  buf^.onEdited(null);
   if ((startPos.y == endPos.y && startPos.x > endPos.x) || startPos.y > endPos.y)
     swap(&startPos, &endPos);
   buf->addHistory(endPos, startPos);
@@ -123,7 +130,7 @@ export vec2 erase(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPo
 
 export vec2? undo(Buffer mutable* buf, vec2 pos) {
   if (!buf->history.empty()) {
-    buf^.lastEdit = null;
+    buf^.onEdited(null);
     const elem = buf->history.pop_back();
     buf->forward.push_back(HistoryElem(buf->text.copy(), elem.cursorBefore, elem.cursorAfter));
     buf->text = elem.text.copy();
@@ -134,7 +141,7 @@ export vec2? undo(Buffer mutable* buf, vec2 pos) {
 
 export vec2? redo(Buffer mutable* buf, vec2 pos) {
   if (!buf->forward.empty()) {
-    buf^.lastEdit = null;
+    buf^.onEdited(null);
     const elem = buf->forward.pop_back();
     buf->history.push_back(HistoryElem(buf->text.copy(), elem.cursorBefore, elem.cursorAfter));
     buf->text = elem.text.copy();
@@ -147,7 +154,7 @@ export vec2 onText(Buffer mutable* buf, string text, vec2 pos) {
   const newPos = pos + vec2(text.size(), 0);
   if (!buf^.lastEdit || buf^.lastEdit^.type != LastEditType::TEXT || (pos - buf^.lastEdit^.cursor).length4() > 1)
     buf->addHistory(pos, newPos);
-  buf^.lastEdit = LastEditInfo(LastEditType::TEXT, pos);
+  buf^.onEdited(LastEditInfo(LastEditType::TEXT, pos));
   buf->text[pos.y] = buf->text[pos.y].insert(pos.x, text);
   return newPos;
 }
@@ -164,7 +171,7 @@ export vec2 onEnter(Buffer mutable* buf, vec2 pos, bool withIndent) {
 }
 
 export vec2 onEnterNoHistory(Buffer mutable* buf, vec2 pos, bool withIndent) {
-  buf^.lastEdit = null;
+  buf^.onEdited(null);
   assert(pos.y >= 0 && pos.y < buf->text.size());
   mutable indent = "";
   if (withIndent)
@@ -200,14 +207,14 @@ export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos, int tabWidth) {
   }
   if (!buf^.lastEdit || buf^.lastEdit^.type != LastEditType::DELETE || (oldPos - buf^.lastEdit^.cursor).length4() > 1)
     buf->addHistory(move(textCopy), oldPos, pos);
-  buf^.lastEdit = LastEditInfo(LastEditType::DELETE, pos);
+  buf^.onEdited(LastEditInfo(LastEditType::DELETE, pos));
   return pos;
 }
 
 export vec2 onDelete(Buffer mutable* buf, vec2 pos) {
   if (!buf^.lastEdit || buf^.lastEdit^.type != LastEditType::DELETE || (pos - buf^.lastEdit^.cursor).length4() > 1)
     buf->addHistory(pos, pos);
-  buf^.lastEdit = LastEditInfo(LastEditType::DELETE, pos);
+  buf^.onEdited(LastEditInfo(LastEditType::DELETE, pos));
   if (pos.x < buf->text[pos.y].size()) {
     buf->text[pos.y] = buf->text[pos.y].substring(0, pos.x)
       + buf->text[pos.y].substring(pos.x + 1, buf->text[pos.y].size() - pos.x - 1);
@@ -219,7 +226,7 @@ export vec2 onDelete(Buffer mutable* buf, vec2 pos) {
 }
 
 export vec2 onDeleteLine(Buffer mutable* buf, vec2 pos) {
-  buf^.lastEdit = null;
+  buf^.onEdited(null);
   const newPos = pos.y == buf->text.size() - 1 ? pos - vec2(0, 1) : pos;
   buf->addHistory(pos, newPos);
   buf->text.remove(pos.y);

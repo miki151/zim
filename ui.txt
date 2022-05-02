@@ -42,6 +42,12 @@ Def FontSize 17 End
             NUMBER 255 150 150
             PREPROC 255 100 255
           }
+          errorColors = {
+            ERROR 255 0 0
+            WARNING 255 255 0
+            INFORMATION 0 255 0
+            HINT 0 0 255
+          }
         ))
       }
       using "editor" width 5 {fill(0 0 0) scrollbar(color = 255 255 255 fontSize = FontSize)}
@@ -127,4 +133,5 @@ Def FontSize 17 End
   using "navigate_forward_callback" key_handler(RIGHT DOWN {LALT} )
   using "switch_to_header_callback" key_handler(F4 DOWN {} )
   using "ui_refresh_callback" key_handler(F1 DOWN {} )
+  using "go_to_definition_callback" key_handler(F3 DOWN {} )
 }
