@@ -39,9 +39,25 @@ template <T>
 struct SearchInfo {
   int scrollPos;
   int pos;
-  string entry;
+  string? entry;
   vector<T> results;
+  vector<T> origResults;
 };
+
+template <T>
+SearchInfo() {
+  return SearchInfo<T>::SearchInfo(0, 0, "", vector<T>(), vector<T>());
+}
+
+template <T> requires copy<T>
+SearchInfo(string? text, vector<T> results) {
+  return SearchInfo<T>::SearchInfo(0, 0, text, results.copy(), results.copy());
+}
+
+template <T> requires copy<T>
+SearchInfo(int scrollPos, int pos, string? text, vector<T> results, vector<T> origResults) {
+  return SearchInfo<T>::SearchInfo(scrollPos, pos, move(text), move(results), move(origResults));
+}
 
 template <T> requires copy<T>
 SearchInfo<T> copy(SearchInfo<T>*) = default;
@@ -73,15 +89,16 @@ void scrollDown(SearchInfo<T> mutable* info, int height) {
 
 template <T>
 void handleTextEntry(SearchInfo<T> mutable* info, TextCallbackParam param) {
-  switch (param) {
-    case (text) {
-      info^.entry += text;
+  if (info^.entry)
+    switch (param) {
+      case (text) {
+        *info^.entry += text;
+      }
+      case (backspace) {
+        if (!info^.entry^.empty())
+          *info^.entry = info^.entry^.substring(0, info^.entry^.size() - 1);
+      }
     }
-    case (backspace) {
-      if (!info^.entry.empty())
-        info^.entry = info^.entry.substring(0, info^.entry.size() - 1);
-    }
-  }
 }
 union FileSearchResult {
   string path;
@@ -102,6 +119,7 @@ export union OverlayInfo {
   string search;
   SearchInfo<FileSearchResult> file;
   SearchInfo<LocationResult> location;
+  SearchInfo<LspCompletionOption> completion;
 };
 
 export struct NextBufferInfo {
@@ -166,7 +184,7 @@ EditorUIState mutable* getEditorState(ProgramState mutable* programState) {
 export void updateLspContent(ProgramState mutable* programState, LspClient mutable* lspClient) {
   mutable data = programState^.getEditorData();
   if (const path = programState^.paths[data^.buffer.index])
-    if (path^.ends_with(&".cpp") && !data^.buffer.lspUpdated) {
+    if (isCppFile(*path) && !data^.buffer.lspUpdated) {
       data^.buffer.lspUpdated = true;
       lspClient^.sendFileChangedNotification(*path, &data^.buffer.joinLines());
     }
@@ -180,6 +198,25 @@ export void handleLspMessages(ProgramState mutable* programState, LspClient muta
       }
       case (definitionResult) {
         programState^.goToPosition(definitionResult.file, definitionResult.line, definitionResult.column);
+      }
+      case (referencesResult) {
+        programState^.previousLocationSearch = SearchInfo(null,
+            referencesResult.transform([programState](LspDefinitionResult* r) {
+              const data = programState^.getEditorData(r^.file);
+              return LocationResult(
+                  data^.buffer.text[r^.line],
+                  r^.line + 1,
+                  data^.buffer.index
+              );
+            }));
+        programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
+      }
+      case (completionResult) {
+        if (completionResult.options.size() == 1) {
+          programState^.applyCompletion(&completionResult.options[0], 0);
+        } else
+        if (completionResult.options.size() > 1)
+          programState^.overlayInfo = OverlayInfo::completion(SearchInfo("", completionResult.options.copy()));
       }
     }
 }
@@ -234,6 +271,10 @@ export void goToPosition(ProgramState mutable* programState, string path, int li
       programState^.getEditorData()^.selectionStart = null;
       programState^.getEditorState()^.searchedPos = vec2(column, line);
     }
+}
+
+bool isCppFile(string path) {
+  return path.ends_with(&".cpp") || path.ends_with(&".h");
 }
 
 export void addPermanentCallbacks(ProgramState mutable* programState, bool mutable* exit,
@@ -304,7 +345,7 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
     programState^.overlayInfo = OverlayInfo::search("");
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("file_search_callback", [programState] {
-    programState^.overlayInfo = OverlayInfo::file(SearchInfo(0, 0, "", vector<FileSearchResult>()));
+    programState^.overlayInfo = OverlayInfo::file(SearchInfo<FileSearchResult>());
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("location_search_callback", [programState] {
     if (const text = getSelectedTextInLine(programState^.getEditorData()))
@@ -324,6 +365,18 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
       lspClient^.sendDefinitionRequest(*path, data^.cursor.y, data^.cursor.x);
+    }
+  }.box_as<UICallback>().box_as<any>());
+  programState^.uiData.insert("find_references_callback", [programState, lspClient] {
+    if (const path = programState^.paths[programState^.currentBuffer]) {
+      const data = programState^.getEditorData();
+      lspClient^.sendReferencesRequest(*path, data^.cursor.y, data^.cursor.x);
+    }
+  }.box_as<UICallback>().box_as<any>());
+  programState^.uiData.insert("completion_callback", [programState, lspClient] {
+    if (const path = programState^.paths[programState^.currentBuffer]) {
+      const data = programState^.getEditorData();
+      lspClient^.sendCompletionRequest(*path, data^.cursor.y, data^.cursor.x);
     }
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("navigate_back_callback", [programState] {
@@ -404,7 +457,7 @@ void doLocationSearch(ProgramState mutable* programState, string text) {
       return isHeader1;
     return false;
   });
-  programState^.previousLocationSearch = SearchInfo(0, 0, text, move(locationResults));
+  programState^.previousLocationSearch = SearchInfo(text, move(locationResults));
   programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
 }
 
@@ -419,7 +472,7 @@ void doFileSearch(ProgramState mutable* programState, string text) {
       }
   if (const n = text.to_int())
     fileResults.push_back(FileSearchResult::line(*n));
-  programState^.overlayInfo = OverlayInfo::file(SearchInfo(0, 0, text, move(fileResults)));
+  programState^.overlayInfo = OverlayInfo::file(SearchInfo(text, move(fileResults)));
 }
 
 void searchAndReplace(ProgramState mutable* programState, string pattern, string replace) {
@@ -460,6 +513,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
   programState^.uiData.erase(&"search_history_up_callback");
   programState^.uiData.erase(&"search_history_down_callback");  
   programState^.uiData.erase(&"location_results");
+  programState^.uiData.erase(&"completion_results");
   programState^.uiData.erase(&"file_results");
   if (programState^.overlayInfo)
     switch (*programState^.overlayInfo) {
@@ -518,7 +572,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
       case (file) {
         programState^.uiData.insert("search_entry", [programState, &file](TextCallbackParam param) {
           file.handleTextEntry(move(param));
-          programState^.doFileSearch(file.entry);
+          programState^.doFileSearch(*file.entry);
         }.box_as<UITextCallback>().box_as<any>());
         programState^.uiData.insert("search_content", box_as<any>(file.entry));
         mutable v = vector<box<any>>();
@@ -557,10 +611,13 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
       }
       case (location) {
         programState^.uiData.insert("search_entry", [programState, &location](TextCallbackParam param) {
-          location.handleTextEntry(move(param));
-          programState^.doLocationSearch(location.entry);
+          if (location.entry) {
+            location.handleTextEntry(move(param));
+            programState^.doLocationSearch(*location.entry);
+          }
         }.box_as<UITextCallback>().box_as<any>());
-        programState^.uiData.insert("search_content", box_as<any>(location.entry));
+        if (location.entry)
+          programState^.uiData.insert("search_content", box_as<any>(*location.entry));
         mutable v = vector<box<any>>();
         for (i : range(location.scrollPos,
             min(location.results.size(), location.scrollPos + 20))) {
@@ -591,7 +648,59 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
             }.box_as<invoke<void>>());
         }.box_as<UICallback>().box_as<any>());        
       }
+      case (completion) {
+        programState^.uiData.insert("search_entry", [programState, &completion](TextCallbackParam param) {
+          const data = programState^.getEditorData();
+          switch (param) {
+            case (text) {
+              data^.cursor = data^.buffer.onText(param.text, data^.cursor);
+            }
+            case (backspace) {
+              data^.cursor = data^.buffer.onBackspace(data^.cursor, 1);
+              if (completion.entry^.empty()) {
+                programState^.overlayInfo = null;
+                return;
+              }
+            }
+          }
+          completion.handleTextEntry(move(param));
+          completion.results = completion.origResults.filter(
+            [&](LspCompletionOption* option) {
+              return option^.text.substring(option^.numErased).starts_with(&*completion.entry);
+          });
+          completion.scrollPos = 0;
+          completion.pos = 0;
+        }.box_as<UITextCallback>().box_as<any>());
+        //programState^.uiData.insert("search_content", box_as<any>(location.entry));
+        mutable v = vector<box<any>>();
+        for (i : range(completion.scrollPos,
+            min(completion.results.size(), completion.scrollPos + 20))) {
+          const elem = &completion.results[i];
+          mutable r = UIRecord();
+          r.insert("text", elem^.label.box_as<any>());
+          if (i == completion.pos)
+            r.insert("selected", 1.box_as<any>());
+          v.push_back(move(r).box_as<any>());
+        }
+        programState^.uiData.insert("completion_results", move(v).box_as<any>());
+        programState^.uiData.insert("location_results_up", [programState, &completion] {
+          completion.scrollUp(20);
+        }.box_as<UICallback>().box_as<any>());
+        programState^.uiData.insert("location_results_down", [programState, &completion] {
+          completion.scrollDown(20);
+        }.box_as<UICallback>().box_as<any>());
+        programState^.uiData.insert("location_results_confirm", [programState, &completion] {
+          programState^.applyCompletion(&completion.results[completion.pos], completion.entry^.size());
+        }.box_as<UICallback>().box_as<any>());        
+      }
     }
+}
+
+void applyCompletion(ProgramState mutable* programState, LspCompletionOption* result, int numEntered) {
+  const data = programState^.getEditorData();
+  data^.cursor = data^.buffer.erase(data^.cursor - vec2(result^.numErased + numEntered, 0), data^.cursor);
+  data^.cursor = data^.buffer.onText(result^.text, data^.cursor);
+  programState^.overlayInfo = null;
 }
 
 void switchToBuffer(ProgramState mutable* programState, int index) {

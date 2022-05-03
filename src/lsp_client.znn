@@ -28,6 +28,20 @@ export struct LspDefinitionResult {
   string file;
 };
 
+export struct LspCompletionOption {
+  string label;
+  string text;
+  int numErased;
+};
+
+export LspCompletionOption copy(LspCompletionOption*) = default;
+
+export struct LspCompletionResult {
+  int line;
+  int column;
+  vector<LspCompletionOption> options;
+};
+
 export enum LspDiagnosticSeverity {
   ERROR,
   WARNING,
@@ -53,7 +67,9 @@ export struct LspDiagnostic {
 
 export union LspMessage {
   LspDefinitionResult definitionResult;
+  vector<LspDefinitionResult> referencesResult;
   LspDiagnostic diagnostic;
+  LspCompletionResult completionResult;
 };
 
 export struct LspClient {
@@ -97,10 +113,11 @@ string uriToPath(string uri) {
 export LspMessage? getMessage(LspClient mutable* client) {
   if (const msg = client^.readMessage()) {
     mutable j = json_parse(*msg);
+    printf("Message {j.dump(2)}\n");
     if (j.contains("result")) {
       const id = j["id"].get<int>();
-      if (client->constructors.contains(&id) && j["result"].size() > 0)
-        return client^.constructors.get(&id)^^(j["result"][0].copy());
+      if (client->constructors.contains(&id))
+        return client^.constructors.get(&id)^^(j["result"].copy());
     }
     if (j.contains("method") && j["method"] == json("textDocument/publishDiagnostics")) {
       //printf("{j.dump(2)}\n");
@@ -141,11 +158,90 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, int li
       };
     }
   }();
-  client^.constructors.insert(client^.resultId, [](json j) -> LspMessage {
+  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage {
+    if (j.is_array())
+      j = j[0].copy();
     return LspDefinitionResult(
       j["range"]["start"]["line"].get<int>(),
       j["range"]["start"]["character"].get<int>(),
       uriToPath(j["uri"].get<string>())
+    );
+  }.box_as<invoke<LspMessage, json>>());
+  client^.sendMessage(j.dump());
+  ++client^.resultId;
+}
+
+export void sendReferencesRequest(LspClient mutable* client, string path, int line, int column) {
+  const j = [client, path, line, column] -> json {
+    embed_returns {
+      return json {
+        {"jsonrpc", "2.0"},
+        {"id", client->resultId},
+        {"method", "textDocument/references"},
+        {"params", {
+          {"textDocument", {
+            {"uri", "file://" + std::string(path.data())}
+          }},
+          {"context", {
+            {"includeDeclaration", true}
+          }},
+          {"position", {
+            {"line", line},
+            {"character", column}
+          }}
+        }}
+      };
+    }
+  }();
+  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage {
+    mutable ret = vector<LspDefinitionResult>();
+    for (elem : j) {
+      ret.push_back(LspDefinitionResult(
+        elem^["range"]["start"]["line"].get<int>(),
+        elem^["range"]["start"]["character"].get<int>(),
+        uriToPath(elem^["uri"].get<string>())
+      ));
+    }
+    return move(ret);
+  }.box_as<invoke<LspMessage, json>>());
+  client^.sendMessage(j.dump());
+  ++client^.resultId;
+}
+
+export void sendCompletionRequest(LspClient mutable* client, string path, int line, int column) {
+  const j = [client, path, line, column] -> json {
+    embed_returns {
+      return json {
+        {"jsonrpc", "2.0"},
+        {"id", client->resultId},
+        {"method", "textDocument/completion"},
+        {"params", {
+          {"textDocument", {
+            {"uri", "file://" + std::string(path.data())}
+          }},
+          {"position", {
+            {"line", line},
+            {"character", column}
+          }}
+        }}
+      };
+    }
+  }();
+  client^.constructors.insert(client^.resultId, [line, column](mutable json j) -> LspMessage {
+    printf("Completion result: {j.dump(2)}\n");
+    mutable options = vector<LspCompletionOption>();
+    for (elem : j["items"]) {
+      const rangeInfo = elem^["textEdit"]["range"].copy();
+      options.push_back(LspCompletionOption(
+          elem^["label"].get<string>(),
+          elem^["textEdit"]["newText"].get<string>(),
+          rangeInfo["end"]["character"].get<int>() - rangeInfo["start"]["character"].get<int>()
+      ));
+    }
+    return LspCompletionResult(
+      line,
+      column,
+      move(options)
     );
   }.box_as<invoke<LspMessage, json>>());
   client^.sendMessage(j.dump());

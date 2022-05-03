@@ -79,6 +79,14 @@ Def FontSize 17 End
         using "text" text(20, 255 255 255)
       })
     })
+    using "completion_results" position(BOTTOM_STRETCHED, max_height 544 {
+      fill(0 0 0)
+      frame(1, 255 255 255)
+      margins(1, list {
+        using "selected" fill(UnsavedColor)
+        using "text" text(20, 255 255 255)
+      })
+    })
   }
   using "prompt_text" key_handler(null)
   using "prompt_text" position(CENTER, width 400 height 80 {
@@ -134,4 +142,6 @@ Def FontSize 17 End
   using "switch_to_header_callback" key_handler(F4 DOWN {} )
   using "ui_refresh_callback" key_handler(F1 DOWN {} )
   using "go_to_definition_callback" key_handler(F3 DOWN {} )
+  using "completion_callback" key_handler(N DOWN {LCTRL} )
+  using "find_references_callback" key_handler(F2 DOWN {} )
 }
