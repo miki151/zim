@@ -196,7 +196,7 @@ export bool updateLspContent(ProgramState mutable* programState, LspClient mutab
       if (!programState^.signature || programState^.signature^.position != data^.cursor ||
           programState^.signature^.file != *path) {
         printf("Signature request\n");
-        lspClient^.sendSignatureRequest(*path, data^.cursor.y, data^.cursor.x);
+        lspClient^.sendSignatureRequest(*path, data^.cursor);
         ret = ret || true;
       }
     }
@@ -211,15 +211,15 @@ export void handleLspMessages(ProgramState mutable* programState, LspClient muta
         programState^.getEditorData(diagnostic.file)^.diagnostics = diagnostic.locations.copy();
       }
       case (definitionResult) {
-        programState^.goToPosition(definitionResult.file, definitionResult.line, definitionResult.column);
+        programState^.goToPosition(definitionResult.file, definitionResult.position);
       }
       case (referencesResult) {
         programState^.previousLocationSearch = SearchInfo(null,
             referencesResult.transform([programState](LspDefinitionResult* r) {
               const data = programState^.getEditorData(r^.file);
               return LocationResult(
-                  data^.buffer.text[r^.line],
-                  r^.line + 1,
+                  data^.buffer.text[r^.position.y],
+                  r^.position.y + 1,
                   data^.buffer.index
               );
             }));
@@ -280,13 +280,13 @@ void doSearchRepeat(ProgramState mutable* programState, bool reverse) {
   }
 }
 
-export void goToPosition(ProgramState mutable* programState, string path, int line, int column) {
+export void goToPosition(ProgramState mutable* programState, string path, vec2 position) {
   programState^.addCursorHistory();
   for (p : programState^.paths)
     if (*p == path) {
       programState^.switchToBuffer(p.index);
       programState^.getEditorData()^.selectionStart = null;
-      programState^.getEditorState()^.searchedPos = vec2(column, line);
+      programState^.getEditorState()^.searchedPos = position;
     }
 }
 
@@ -381,19 +381,19 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
   programState^.uiData.insert("go_to_definition_callback", [programState, lspClient] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
-      lspClient^.sendDefinitionRequest(*path, data^.cursor.y, data^.cursor.x);
+      lspClient^.sendDefinitionRequest(*path, data^.cursor);
     }
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("find_references_callback", [programState, lspClient] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
-      lspClient^.sendReferencesRequest(*path, data^.cursor.y, data^.cursor.x);
+      lspClient^.sendReferencesRequest(*path, data^.cursor);
     }
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("completion_callback", [programState, lspClient] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
-      lspClient^.sendCompletionRequest(*path, data^.cursor.y, data^.cursor.x);
+      lspClient^.sendCompletionRequest(*path, data^.cursor);
     }
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("navigate_back_callback", [programState] {

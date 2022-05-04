@@ -103,8 +103,8 @@ void renderErrors(EditorUI* editor, UIContext context, rectangle* r, vec2 textSi
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const state = context.state^.get_state<EditorUIState>();
   for (diagnostic : data^.diagnostics) {
-    mutable startPos = vec2(diagnostic^.startColumn, diagnostic^.startLine);
-    mutable endPos = vec2(diagnostic^.endColumn, diagnostic^.endLine);
+    mutable startPos = diagnostic^.startPos;
+    mutable endPos = diagnostic^.endPos;
     const origStartLine = startPos.y;
     const renderLine = [&] (int line, int px, int kx) {
       const pos = r->v1 + (vec2(px, line) + vec2(0, 1) - data->scrollPos).pairwise_mult(textSize)
