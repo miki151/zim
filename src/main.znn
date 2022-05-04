@@ -99,7 +99,7 @@ int main(string[] args) {
       vec2(0, 0),
       null,
       &programState.highlighter,
-      vector<LspDiagnosticLocation>()
+      vector<LspDiagnosticLocation>(),
     ));
   }
   mutable exit = false;
@@ -114,13 +114,16 @@ int main(string[] args) {
   }.box_as<UICallback>().box_as<any>());
   mutable eventsState = SDLEventsState();
   mutable lastContentCheck = current_time_milli();
+  mutable lastLspRequest = current_time_milli();
   while (!exit) {
+    const curTime = current_time_milli();
     programState.handleLspMessages(&lspClient);
-    if (current_time_milli() > lastContentCheck + 500) {
-      lastContentCheck = current_time_milli();
+    if (curTime > lastContentCheck + 500) {
+      lastContentCheck = curTime;
       window.updateOutOfDateContent(&programState);
-      programState.updateLspContent(&lspClient);
     }
+    if (curTime > lastLspRequest + 500 && programState.updateLspContent(&lspClient))
+        lastLspRequest = curTime;
     window.setTitle(programState.getBufferName(programState.currentBuffer));
     while (!programState.toDo.empty()) {
       programState.toDo.back()^^();

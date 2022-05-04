@@ -88,6 +88,11 @@ Def FontSize 17 End
       })
     })
   }
+  using "signatures" position(TOP_LEFT, margins(5, {
+    fill(0 0 0)
+    frame(1, 255 255 255)
+    margins(5, list text(FontSize, 255 255 255))
+  }))
   using "prompt_text" key_handler(null)
   using "prompt_text" position(CENTER, width 400 height 80 {
     fill(BorderColor)

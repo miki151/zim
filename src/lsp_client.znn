@@ -6,6 +6,7 @@ import "std/enum.znn";
 import "std/io.znn";
 
 import "json.znn";
+export import "ui/vec2.znn";
 
 export embed {
  #include "lsp_client_base.h"
@@ -65,16 +66,25 @@ export struct LspDiagnostic {
   vector<LspDiagnosticLocation> locations;
 };
 
+export struct LspSignature {
+  string file;
+  vec2 position;
+  vector<string> elems;
+};
+
+export LspSignature copy(LspSignature*) = default;
+
 export union LspMessage {
   LspDefinitionResult definitionResult;
   vector<LspDefinitionResult> referencesResult;
   LspDiagnostic diagnostic;
   LspCompletionResult completionResult;
+  LspSignature signature;
 };
 
 export struct LspClient {
   LspClientBase client;
-  hash_map<int, box<invoke<LspMessage, json>>> constructors;
+  hash_map<int, box<invoke<LspMessage?, json>>> constructors;
   int resultId;
   hash_map<string, int> documentVersions;
   LspMessage? lspMessage;
@@ -83,7 +93,7 @@ export struct LspClient {
 export LspClient(string command, vector<string> args) {
   return LspClient::LspClient(
       getLspClientBase(move(command), move(args)), 
-      hash_map<int, box<invoke<LspMessage, json>>>(),
+      hash_map<int, box<invoke<LspMessage?, json>>>(),
       0,
       hash_map<string, int>(),
       null
@@ -158,15 +168,47 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, int li
       };
     }
   }();
-  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage {
-    if (j.is_array())
+  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
+    if (j.is_array()) {
+      if (j.empty())
+        return null;
       j = j[0].copy();
-    return LspDefinitionResult(
+    }
+    return LspMessage::definitionResult(LspDefinitionResult(
       j["range"]["start"]["line"].get<int>(),
       j["range"]["start"]["character"].get<int>(),
       uriToPath(j["uri"].get<string>())
-    );
-  }.box_as<invoke<LspMessage, json>>());
+    ));
+  }.box_as<invoke<LspMessage?, json>>());
+  client^.sendMessage(j.dump());
+  ++client^.resultId;
+}
+
+export void sendSignatureRequest(LspClient mutable* client, string path, int line, int column) {
+  const j = [client, path, line, column] -> json {
+    embed_returns {
+      return json {
+        {"jsonrpc", "2.0"},
+        {"id", client->resultId},
+        {"method", "textDocument/signatureHelp"},
+        {"params", {
+          {"textDocument", {
+            {"uri", "file://" + std::string(path.data())}
+          }},
+          {"position", {
+            {"line", line},
+            {"character", column}
+          }}
+        }}
+      };
+    }
+  }();
+  client^.constructors.insert(client^.resultId, [path, line, column](mutable json j) -> LspMessage? {
+    mutable labels = vector<string>();
+    for (elem : j["signatures"])
+      labels.push_back(elem^["label"].get<string>());
+    return LspMessage::signature(LspSignature(path, vec2(column, line), move(labels)));
+  }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }
@@ -193,7 +235,7 @@ export void sendReferencesRequest(LspClient mutable* client, string path, int li
       };
     }
   }();
-  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage {
+  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
     mutable ret = vector<LspDefinitionResult>();
     for (elem : j) {
       ret.push_back(LspDefinitionResult(
@@ -202,8 +244,8 @@ export void sendReferencesRequest(LspClient mutable* client, string path, int li
         uriToPath(elem^["uri"].get<string>())
       ));
     }
-    return move(ret);
-  }.box_as<invoke<LspMessage, json>>());
+    return LspMessage::referencesResult(move(ret));
+  }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }
@@ -227,7 +269,7 @@ export void sendCompletionRequest(LspClient mutable* client, string path, int li
       };
     }
   }();
-  client^.constructors.insert(client^.resultId, [line, column](mutable json j) -> LspMessage {
+  client^.constructors.insert(client^.resultId, [line, column](mutable json j) -> LspMessage? {
     printf("Completion result: {j.dump(2)}\n");
     mutable options = vector<LspCompletionOption>();
     for (elem : j["items"]) {
@@ -238,12 +280,12 @@ export void sendCompletionRequest(LspClient mutable* client, string path, int li
           rangeInfo["end"]["character"].get<int>() - rangeInfo["start"]["character"].get<int>()
       ));
     }
-    return LspCompletionResult(
+    return LspMessage::completionResult(LspCompletionResult(
       line,
       column,
       move(options)
-    );
-  }.box_as<invoke<LspMessage, json>>());
+    ));
+  }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }

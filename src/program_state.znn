@@ -141,6 +141,7 @@ export struct ProgramState {
   SearchInfo<LocationResult>? previousLocationSearch;
   vector<box<invoke<void>>> toDo;
   Highlighter highlighter;
+  LspSignature? signature;
 };
 
 export ProgramState(vector<string?> paths, Highlighter highlighter) {
@@ -157,7 +158,8 @@ export ProgramState(vector<string?> paths, Highlighter highlighter) {
     .overlayInfo = null,
     .previousLocationSearch = null,
     .toDo = vector<box<invoke<void>>>(),
-    .highlighter = move(highlighter)
+    .highlighter = move(highlighter),
+    .signature = null
   );
 }
 
@@ -181,13 +183,25 @@ EditorUIState mutable* getEditorState(ProgramState mutable* programState) {
   return programState^.uiState.get_state<EditorUIState>();
 }
 
-export void updateLspContent(ProgramState mutable* programState, LspClient mutable* lspClient) {
+export bool updateLspContent(ProgramState mutable* programState, LspClient mutable* lspClient) {
   mutable data = programState^.getEditorData();
-  if (const path = programState^.paths[data^.buffer.index])
-    if (isCppFile(*path) && !data^.buffer.lspUpdated) {
-      data^.buffer.lspUpdated = true;
-      lspClient^.sendFileChangedNotification(*path, &data^.buffer.joinLines());
+  mutable ret = false;
+  if (const path = programState^.paths[data^.buffer.index]) {
+    if (isCppFile(*path)) {
+      if (!data^.buffer.lspUpdated) {
+        data^.buffer.lspUpdated = true;
+        lspClient^.sendFileChangedNotification(*path, &data^.buffer.joinLines());
+        ret = ret || true;
+      }
+      if (!programState^.signature || programState^.signature^.position != data^.cursor ||
+          programState^.signature^.file != *path) {
+        printf("Signature request\n");
+        lspClient^.sendSignatureRequest(*path, data^.cursor.y, data^.cursor.x);
+        ret = ret || true;
+      }
     }
+  }
+  return ret;
 }
 
 export void handleLspMessages(ProgramState mutable* programState, LspClient mutable* lspClient) {
@@ -217,6 +231,9 @@ export void handleLspMessages(ProgramState mutable* programState, LspClient muta
         } else
         if (completionResult.options.size() > 1)
           programState^.overlayInfo = OverlayInfo::completion(SearchInfo("", completionResult.options.copy()));
+      }
+      case (signature) {
+        programState^.signature = signature.copy();
       }
     }
 }
@@ -515,6 +532,15 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
   programState^.uiData.erase(&"location_results");
   programState^.uiData.erase(&"completion_results");
   programState^.uiData.erase(&"file_results");
+  programState^.uiData.erase(&"signatures");
+  const editorData = programState^.getEditorData();
+  if (!!programState^.signature && !programState^.signature^.elems.empty() &&
+      programState^.signature^.position == editorData^.cursor && 
+      programState^.paths[programState^.currentBuffer] == programState^.signature^.file) {
+    const v = programState^.signature^.elems.transform(
+        [](string* s) { return s^.box_as<any>(); });
+    programState^.uiData.insert("signatures", move(v).box_as<any>());
+  }
   if (programState^.overlayInfo)
     switch (*programState^.overlayInfo) {
       case (search) {
@@ -574,7 +600,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
           file.handleTextEntry(move(param));
           programState^.doFileSearch(*file.entry);
         }.box_as<UITextCallback>().box_as<any>());
-        programState^.uiData.insert("search_content", box_as<any>(file.entry));
+        programState^.uiData.insert("search_content", box_as<any>(*file.entry));
         mutable v = vector<box<any>>();
         for (i : range(file.scrollPos, min(file.results.size(), file.scrollPos + 20))) {
           mutable r = UIRecord();
@@ -671,7 +697,6 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
           completion.scrollPos = 0;
           completion.pos = 0;
         }.box_as<UITextCallback>().box_as<any>());
-        //programState^.uiData.insert("search_content", box_as<any>(location.entry));
         mutable v = vector<box<any>>();
         for (i : range(completion.scrollPos,
             min(completion.results.size(), completion.scrollPos + 20))) {
