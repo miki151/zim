@@ -147,6 +147,6 @@ Def FontSize 17 End
   using "switch_to_header_callback" key_handler(F4 DOWN {} )
   using "ui_refresh_callback" key_handler(F1 DOWN {} )
   using "go_to_definition_callback" key_handler(F3 DOWN {} )
-  using "completion_callback" key_handler(N DOWN {LCTRL} )
+  using "completion_callback" key_handler(SPACE DOWN {LCTRL} )
   using "find_references_callback" key_handler(F2 DOWN {} )
 }
