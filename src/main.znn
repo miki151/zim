@@ -20,6 +20,7 @@ import "scrollbar_ui.znn";
 import "highlighter.znn";
 import "program_state.znn";
 import "lsp_client.znn";
+import "lsp_client_map.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
@@ -42,6 +43,8 @@ struct Flags {
   bool noPanicHandler;
   string? font;
   vector<string> all;
+  bool lspStderr;
+  bool noLsp;
 };
 
 void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programState) {
@@ -64,6 +67,26 @@ void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programStat
     }
 }
 
+string getCurrentDir() {
+  embed_returns {
+    return zenon_string::owned(std::filesystem::current_path().string().data());
+  }
+}
+
+LspClientMap getLspClients(Flags* flags) {
+  const currentDir = getCurrentDir();
+  mutable lspClientMap = LspClientMap();
+  if (!flags^.noLsp) {
+    lspClientMap.addClient({"cpp", "h"}.slice(),
+        LspClient("clangd", {"--background-index"}.as_vector(), flags^.lspStderr));
+    lspClientMap.addClient({"znn"}.slice(),
+        LspClient("/home/michal/zenon/zenon", {"--lsp"}.as_vector(), flags^.lspStderr));
+    for (client : lspClientMap.clients)
+      client^.initialize(currentDir);
+  }
+  return move(lspClientMap);
+}
+
 int main(string[] args) {
   const flags = *read_flags<Flags>(args);
   const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
@@ -72,8 +95,7 @@ int main(string[] args) {
   *sdl_init();
   const dataDir = sdl_data_directory_path();
   mutable ui = *readUIFrom(dataDir + "ui.txt");
-  mutable lspClient = LspClient("clangd", {"--background-index"}.as_vector());
-  lspClient.initialize();
+  mutable lspClientMap = getLspClients(&flags);
   const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
@@ -103,7 +125,7 @@ int main(string[] args) {
     ));
   }
   mutable exit = false;
-  programState.addPermanentCallbacks(&exit, &lspClient);
+  programState.addPermanentCallbacks(&exit, &lspClientMap);
   programState.uiData.insert("ui_refresh_callback", [&] {
     programState.toDo.push_back([&] {
       if (const res = readUIFrom(dataDir + "ui.txt"))
@@ -117,12 +139,12 @@ int main(string[] args) {
   mutable lastLspRequest = current_time_milli();
   while (!exit) {
     const curTime = current_time_milli();
-    programState.handleLspMessages(&lspClient);
+    programState.handleLspMessages(&lspClientMap);
     if (curTime > lastContentCheck + 500) {
       lastContentCheck = curTime;
       window.updateOutOfDateContent(&programState);
     }
-    if (curTime > lastLspRequest + 500 && programState.updateLspContent(&lspClient))
+    if (curTime > lastLspRequest + 500 && programState.updateLspContent(&lspClientMap))
         lastLspRequest = curTime;
     window.setTitle(programState.getBufferName(programState.currentBuffer));
     while (!programState.toDo.empty()) {

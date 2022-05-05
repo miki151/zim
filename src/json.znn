@@ -1,3 +1,6 @@
+
+export import "std/expected.znn";
+
 export embed {
 #include "nlohmann/json.hpp"
 using nlohmann::json;
@@ -117,9 +120,19 @@ export string dump(json* j, int indent) {
   }
 }
 
-export json json_parse(string s) {
+export json!string json_parse(string s) {
+  const getValue = [](json j) -> json!string {
+    return move(j);
+  };
+  const getError = [](string s) -> json!string {
+    return move(s);
+  };
   embed_returns {
-    return json::parse(s.data());
+    try {
+      return invoke(&getValue, json::parse(s.data()));
+    } catch (nlohmann::detail::parse_error e) {
+      return invoke(&getError, zenon_string::owned(e.what()));
+    }
   }
 }
 

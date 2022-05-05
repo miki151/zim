@@ -9,6 +9,7 @@ export import "highlighter.znn";
 import "buffer.znn";
 import "editor_ui.znn";
 import "dialogs.znn";
+import "lsp_client_map.znn";
 
 void setPrompt(ProgramState mutable* programState, string question, box<invoke<void>> callback_yes) {
   const uiData = &programState^.uiData;
@@ -183,20 +184,20 @@ EditorUIState mutable* getEditorState(ProgramState mutable* programState) {
   return programState^.uiState.get_state<EditorUIState>();
 }
 
-export bool updateLspContent(ProgramState mutable* programState, LspClient mutable* lspClient) {
+export bool updateLspContent(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
   mutable data = programState^.getEditorData();
   mutable ret = false;
   if (const path = programState^.paths[data^.buffer.index]) {
-    if (isCppFile(*path)) {
+    if (const lspClient = lspClientMap^.getClient(*path)) {
       if (!data^.buffer.lspUpdated) {
         data^.buffer.lspUpdated = true;
-        lspClient^.sendFileChangedNotification(*path, &data^.buffer.joinLines());
+        lspClient^^.sendFileChangedNotification(*path, &data^.buffer.joinLines());
         ret = ret || true;
       }
       if (!programState^.signature || programState^.signature^.position != data^.cursor ||
           programState^.signature^.file != *path) {
         printf("Signature request\n");
-        lspClient^.sendSignatureRequest(*path, data^.cursor);
+        lspClient^^.sendSignatureRequest(*path, data^.cursor);
         ret = ret || true;
       }
     }
@@ -204,38 +205,39 @@ export bool updateLspContent(ProgramState mutable* programState, LspClient mutab
   return ret;
 }
 
-export void handleLspMessages(ProgramState mutable* programState, LspClient mutable* lspClient) {
-  if (const msg = lspClient^.getMessage())
-    switch (*msg) {
-      case (diagnostic) {
-        programState^.getEditorData(diagnostic.file)^.diagnostics = diagnostic.locations.copy();
+export void handleLspMessages(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
+  for (lspClient : lspClientMap^.clients)
+    if (const msg = lspClient^.getMessage())
+      switch (*msg) {
+        case (diagnostic) {
+          programState^.getEditorData(diagnostic.file)^.diagnostics = diagnostic.locations.copy();
+        }
+        case (definitionResult) {
+          programState^.goToPosition(definitionResult.file, definitionResult.position);
+        }
+        case (referencesResult) {
+          programState^.previousLocationSearch = SearchInfo(null,
+              referencesResult.transform([programState](LspDefinitionResult* r) {
+                const data = programState^.getEditorData(r^.file);
+                return LocationResult(
+                    data^.buffer.text[r^.position.y],
+                    r^.position.y + 1,
+                    data^.buffer.index
+                );
+              }));
+          programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
+        }
+        case (completionResult) {
+          if (completionResult.options.size() == 1) {
+            programState^.applyCompletion(&completionResult.options[0], 0);
+          } else
+          if (completionResult.options.size() > 1)
+            programState^.overlayInfo = OverlayInfo::completion(SearchInfo("", completionResult.options.copy()));
+        }
+        case (signature) {
+          programState^.signature = signature.copy();
+        }
       }
-      case (definitionResult) {
-        programState^.goToPosition(definitionResult.file, definitionResult.position);
-      }
-      case (referencesResult) {
-        programState^.previousLocationSearch = SearchInfo(null,
-            referencesResult.transform([programState](LspDefinitionResult* r) {
-              const data = programState^.getEditorData(r^.file);
-              return LocationResult(
-                  data^.buffer.text[r^.position.y],
-                  r^.position.y + 1,
-                  data^.buffer.index
-              );
-            }));
-        programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
-      }
-      case (completionResult) {
-        if (completionResult.options.size() == 1) {
-          programState^.applyCompletion(&completionResult.options[0], 0);
-        } else
-        if (completionResult.options.size() > 1)
-          programState^.overlayInfo = OverlayInfo::completion(SearchInfo("", completionResult.options.copy()));
-      }
-      case (signature) {
-        programState^.signature = signature.copy();
-      }
-    }
 }
 
 void switchBufferDownCallback(ProgramState mutable* programState) {
@@ -295,7 +297,7 @@ bool isCppFile(string path) {
 }
 
 export void addPermanentCallbacks(ProgramState mutable* programState, bool mutable* exit,
-    LspClient mutable* lspClient) {
+    LspClientMap mutable* lspClientMap) {
   programState^.uiData.insert("exit_callback", [programState, exit] {
     if (programState^.overlayInfo) {
       programState^.overlayInfo = null;
@@ -378,22 +380,25 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
   programState^.uiData.insert("search_reverse_repeat_callback", [programState] {
     doSearchRepeat(programState, true);
   }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("go_to_definition_callback", [programState, lspClient] {
+  programState^.uiData.insert("go_to_definition_callback", [programState, lspClientMap] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
-      lspClient^.sendDefinitionRequest(*path, data^.cursor);
+      if (const client = lspClientMap^.getClient(*path))
+        client^^.sendDefinitionRequest(*path, data^.cursor);
     }
   }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("find_references_callback", [programState, lspClient] {
+  programState^.uiData.insert("find_references_callback", [programState, lspClientMap] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
-      lspClient^.sendReferencesRequest(*path, data^.cursor);
+      if (const client = lspClientMap^.getClient(*path))
+        client^^.sendReferencesRequest(*path, data^.cursor);
     }
   }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("completion_callback", [programState, lspClient] {
+  programState^.uiData.insert("completion_callback", [programState, lspClientMap] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
-      lspClient^.sendCompletionRequest(*path, data^.cursor);
+      if (const client = lspClientMap^.getClient(*path))
+        client^^.sendCompletionRequest(*path, data^.cursor);
     }
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("navigate_back_callback", [programState] {

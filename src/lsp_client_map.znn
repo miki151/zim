@@ -1,0 +1,32 @@
+
+export import "std/vector.znn";
+export import "lsp_client.znn";
+export import "std/hash_map.znn";
+
+export struct LspClientMap {
+  vector<LspClient> clients;
+  hash_map<string, int> extensions;
+};
+
+export LspClientMap() {
+  return LspClientMap::LspClientMap(vector<LspClient>(), hash_map<string, int>());
+}
+
+export void addClient(LspClientMap mutable* m, string[] extensions, LspClient client) {
+  m^.clients.push_back(move(client));
+  for (e : extensions)
+    m^.extensions.insert(*e, m^.clients.size() - 1);
+}
+
+string getExtension(string path) {
+  for (i = path.size() - 1; i >= 0; --i)
+    if (path[i] == '.')
+      return path.substring(i + 1);
+  return path;
+}
+
+export LspClient mutable*? getClient(LspClientMap mutable* m, string path) {
+  if (const ind = m^.extensions.get_maybe(&getExtension(path)))
+    return &m^.clients[**ind];
+  return null;
+}

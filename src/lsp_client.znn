@@ -14,12 +14,12 @@ export embed {
 
 export extern struct LspClientBase;
 
-LspClientBase getLspClientBase(string command, vector<string> args) {
+LspClientBase getLspClientBase(string command, vector<string> args, bool serverStderr) {
   embed_returns {
     std::vector<std::string> argsCopy;
     for (auto& a : args)
       argsCopy.push_back(a.data());
-    return LspClientBase(command.data(), argsCopy);
+    return LspClientBase(command.data(), argsCopy, serverStderr);
   }
 }
 
@@ -86,9 +86,9 @@ export struct LspClient {
   LspMessage? lspMessage;
 };
 
-export LspClient(string command, vector<string> args) {
+export LspClient(string command, vector<string> args, bool serverStderr) {
   return LspClient::LspClient(
-      getLspClientBase(move(command), move(args)), 
+      getLspClientBase(move(command), move(args), serverStderr), 
       hash_map<int, box<invoke<LspMessage?, json>>>(),
       0,
       hash_map<string, int>(),
@@ -119,17 +119,22 @@ string uriToPath(string uri) {
 export LspMessage? getMessage(LspClient mutable* client) {
   if (const msg = client^.readMessage()) {
     mutable j = json_parse(*msg);
-    printf("Message {j.dump(2)}\n");
-    if (j.contains("result")) {
-      const id = j["id"].get<int>();
-      if (client->constructors.contains(&id))
-        return client^.constructors.get(&id)^^(j["result"].copy());
+    if (!j) {
+      printf("Parsing error {j.error}\n");
+      printf("{*msg}\n");
+      printf("========\n");
+      return null;
     }
-    if (j.contains("method") && j["method"] == json("textDocument/publishDiagnostics")) {
-      //printf("{j.dump(2)}\n");
+    printf("Message {j^.dump(2)}\n");
+    if (j^.contains("result")) {
+      const id = j^["id"].get<int>();
+      if (client->constructors.contains(&id))
+        return client^.constructors.get(&id)^^(j^["result"].copy());
+    }
+    if (j^.contains("method") && j^["method"] == json("textDocument/publishDiagnostics")) {
       mutable ret = vector<LspDiagnosticLocation>();
-      const file = uriToPath(j["params"]["uri"].get<string>());
-      for (elem : j["params"]["diagnostics"]) {
+      const file = uriToPath(j^["params"]["uri"].get<string>());
+      for (elem : j^["params"]["diagnostics"]) {
         ret.push_back(LspDiagnosticLocation(
           vec2(elem^["range"]["start"]["character"].get<int>(),
               elem^["range"]["start"]["line"].get<int>()),
@@ -317,8 +322,8 @@ export void sendFileOpenedNotification(LspClient mutable* client, string path, s
   client^.sendMessage(didOpen.dump());
 }
 
-export void initialize(LspClient mutable* client) {
-  const msg = [] -> json {
+export void initialize(LspClient mutable* client, string homeDir) {
+  const msg = [homeDir] -> json {
     embed_returns {
       return json {
         {"jsonrpc", "2.0"},
@@ -342,8 +347,8 @@ export void initialize(LspClient mutable* client) {
               }}
             }}
           }},
-          {"rootPath", "/home/michal"},
-          {"rootUri", "file:///home/michal"},
+          {"rootPath", homeDir.data()},
+          {"rootUri", ("file://" + homeDir).data()},
           {"trace", "off"}
         }},
         {"id", 0}
