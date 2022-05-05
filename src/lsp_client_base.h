@@ -59,7 +59,7 @@ class LspClientBase {
     return content;
   }
 
-  LspClientBase(std::string serverCommand, std::vector<std::string> args) {
+  LspClientBase(std::string serverCommand, std::vector<std::string> args, bool serverStderr) {
     assert(pipe(pipeP2C) == 0);
     assert(pipe2(pipeC2P, O_NONBLOCK) == 0);
     int pid = fork();
@@ -74,8 +74,10 @@ class LspClientBase {
       dup2(pipeC2P[1], STDOUT_FILENO);
       close(pipeP2C[0]);
       close(pipeC2P[1]);
-      int fd = open("/dev/null", O_WRONLY);
-      dup2(fd, 2);
+      if (!serverStderr) {
+        int fd = open("/dev/null", O_WRONLY);
+        dup2(fd, 2);
+      }
       vector<char*> argv {
         serverCommand.data()
       };
@@ -87,7 +89,7 @@ class LspClientBase {
     }
   }
 
-  ~LspClientBase() {
+  /*~LspClientBase() {
     std::vector<std::string> text = {
       "{\"jsonrpc\":\"2.0\",\"method\":\"shutdown\",\"id\":2}",
       "{\"jsonrpc\":\"2.0\",\"method\":\"exit\"}"
@@ -95,7 +97,7 @@ class LspClientBase {
     sendMessage(text[0]);
     while (!readMessage()) {}
     sendMessage(text[1]);
-  }
+  }*/
 
   private:
 
