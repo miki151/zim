@@ -196,9 +196,10 @@ export bool updateLspContent(ProgramState mutable* programState, LspClientMap mu
       }
       if (!programState^.signature || programState^.signature^.position != data^.cursor ||
           programState^.signature^.file != *path) {
-        printf("Signature request\n");
-        lspClient^^.sendSignatureRequest(*path, data^.cursor);
-        ret = ret || true;
+        if (lspClient^^.sendSignatureRequest(*path, data^.cursor)) {
+          printf("Signature request\n");
+          ret = ret || true;
+        }
       }
     }
   }

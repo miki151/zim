@@ -1,5 +1,6 @@
 import "std/io.znn";
 export import "std/hash_map.znn";
+export import "std/hash_set.znn";
 export import "std/box.znn";
 export import "std/vector.znn";
 import "std/enum.znn";
@@ -84,6 +85,7 @@ export struct LspClient {
   int resultId;
   hash_map<string, int> documentVersions;
   LspMessage? lspMessage;
+  hash_set<string> capabilities;
 };
 
 export LspClient(string command, vector<string> args, bool serverStderr) {
@@ -92,7 +94,8 @@ export LspClient(string command, vector<string> args, bool serverStderr) {
       hash_map<int, box<invoke<LspMessage?, json>>>(),
       0,
       hash_map<string, int>(),
-      null
+      null,
+      hash_set<string>()
   );
 }
 
@@ -185,7 +188,9 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
   ++client^.resultId;
 }
 
-export void sendSignatureRequest(LspClient mutable* client, string path, vec2 position) {
+export bool sendSignatureRequest(LspClient mutable* client, string path, vec2 position) {
+  if (!client^.capabilities.contains(&"signatureHelpProvider"))
+    return false;
   const j = [client, path, position] -> json {
     embed_returns {
       return json {
@@ -212,6 +217,7 @@ export void sendSignatureRequest(LspClient mutable* client, string path, vec2 po
   }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
+  return true;
 }
 
 export void sendReferencesRequest(LspClient mutable* client, string path, vec2 position) {
@@ -355,6 +361,12 @@ export void initialize(LspClient mutable* client, string homeDir) {
       };
     }
   }();
+  client^.constructors.insert(0, [client](mutable json j) -> LspMessage? {
+    j = j["capabilities"].copy();
+    if (j.contains("signatureHelpProvider"))
+      client^.capabilities.insert("signatureHelpProvider");
+    return null;
+  }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(msg.dump());
   ++client^.resultId;
 }
