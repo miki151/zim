@@ -16,6 +16,13 @@ export json(int i) {
   }
 }
 
+export json(bool b) {
+  embed_returns {
+    json j = b;
+    return j;
+  }
+}
+
 export json(string s) {
   embed_returns {
     json j = s.data();
@@ -80,6 +87,10 @@ export json mutable* operator [] (json mutable* j, string s) {
 export json set(mutable json j, string key, json value) {
   j[key] = move(value);
   return move(j);
+}
+
+export void set(json mutable* j, string key, json value) {
+  j^[key] = move(value);
 }
 
 export extern bool operator == (json*, json*);

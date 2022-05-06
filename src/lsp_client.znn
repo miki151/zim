@@ -153,25 +153,31 @@ export LspMessage? getMessage(LspClient mutable* client) {
   return null;
 }
 
+json getPosition(vec2 pos) {
+  return json_object()
+      .set("line", json(pos.y))
+      .set("character", json(pos.x));
+}
+
+json getMethod(string method, int? id, json params) {
+  mutable obj = json_object()
+      .set("jsonrpc", json("2.0"))
+      .set("method", json(method))
+      .set("params", move(params));
+  if (id)
+    obj.set("id", json(*id));
+  return move(obj);
+}
+
+json getUri(string path) {
+  return json_object()
+      .set("uri", json("file://" + move(path)));
+}
+
 export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 position) {
-  const j = [client, path, position] -> json {
-    embed_returns {
-      return json {
-        {"jsonrpc", "2.0"},
-        {"id", client->resultId},
-        {"method", "textDocument/definition"},
-        {"params", {
-          {"textDocument", {
-            {"uri", "file://" + std::string(path.data())}
-          }},
-          {"position", {
-            {"line", position.y},
-            {"character", position.x}
-          }}
-        }}
-      };
-    }
-  }();
+  const j = getMethod("textDocument/definition", client^.resultId, json_object()
+      .set("textDocument", getUri(path))
+      .set("position", getPosition(position)));
   client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
     if (j.is_array()) {
       if (j.empty())
@@ -191,24 +197,9 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
 export bool sendSignatureRequest(LspClient mutable* client, string path, vec2 position) {
   if (!client^.capabilities.contains(&"signatureHelpProvider"))
     return false;
-  const j = [client, path, position] -> json {
-    embed_returns {
-      return json {
-        {"jsonrpc", "2.0"},
-        {"id", client->resultId},
-        {"method", "textDocument/signatureHelp"},
-        {"params", {
-          {"textDocument", {
-            {"uri", "file://" + std::string(path.data())}
-          }},
-          {"position", {
-            {"line", position.y},
-            {"character", position.x}
-          }}
-        }}
-      };
-    }
-  }();
+  const j = getMethod("textDocument/signatureHelp", client^.resultId, json_object()
+      .set("textDocument", getUri(path))
+      .set("position", getPosition(position)));
   client^.constructors.insert(client^.resultId, [path, position](mutable json j) -> LspMessage? {
     mutable labels = vector<string>();
     for (elem : j["signatures"])
@@ -221,27 +212,10 @@ export bool sendSignatureRequest(LspClient mutable* client, string path, vec2 po
 }
 
 export void sendReferencesRequest(LspClient mutable* client, string path, vec2 position) {
-  const j = [client, path, position] -> json {
-    embed_returns {
-      return json {
-        {"jsonrpc", "2.0"},
-        {"id", client->resultId},
-        {"method", "textDocument/references"},
-        {"params", {
-          {"textDocument", {
-            {"uri", "file://" + std::string(path.data())}
-          }},
-          {"context", {
-            {"includeDeclaration", true}
-          }},
-          {"position", {
-            {"line", position.y},
-            {"character", position.x}
-          }}
-        }}
-      };
-    }
-  }();
+  const j = getMethod("textDocument/references", client^.resultId, json_object()
+      .set("textDocument", getUri(path))
+      .set("position", getPosition(position))
+      .set("context", json_object().set("includeDeclaration", json(true))));
   client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
     mutable ret = vector<LspDefinitionResult>();
     for (elem : j) {
@@ -258,26 +232,10 @@ export void sendReferencesRequest(LspClient mutable* client, string path, vec2 p
 }
 
 export void sendCompletionRequest(LspClient mutable* client, string path, vec2 position) {
-  const j = [client, path, position] -> json {
-    embed_returns {
-      return json {
-        {"jsonrpc", "2.0"},
-        {"id", client->resultId},
-        {"method", "textDocument/completion"},
-        {"params", {
-          {"textDocument", {
-            {"uri", "file://" + std::string(path.data())}
-          }},
-          {"position", {
-            {"line", position.y},
-            {"character", position.x}
-          }}
-        }}
-      };
-    }
-  }();
+  const j = getMethod("textDocument/completion", client^.resultId, json_object()
+      .set("textDocument", getUri(path))
+      .set("position", getPosition(position)));
   client^.constructors.insert(client^.resultId, [position](mutable json j) -> LspMessage? {
-    printf("Completion result: {j.dump(2)}\n");
     mutable options = vector<LspCompletionOption>();
     for (elem : j["items"]) {
       const rangeInfo = elem^["textEdit"]["range"].copy();
@@ -298,75 +256,60 @@ export void sendCompletionRequest(LspClient mutable* client, string path, vec2 p
 
 export void sendFileChangedNotification(LspClient mutable* client, string path, string* content) {
   if (const version = client^.documentVersions.get_maybe(&path)) {
-    mutable didOpen = json_object();
-    didOpen["jsonrpc"] = json("2.0");
-    didOpen["method"] = json("textDocument/didChange");
-    mutable params = json_object();
-    params["textDocument"]["uri"] = json("file://" + path);
-    ++**version;
-    params["textDocument"]["version"] = json(**version);
     mutable ar = json_array();
     ar.push_back(json_object().set("text", json(*content)));
-    params["contentChanges"] = move(ar);
-    didOpen["params"] = move(params);
-    client^.sendMessage(didOpen.dump());
+    const j = getMethod("textDocument/didChange", null, json_object()
+      .set("textDocument", getUri(path).set("version", json(**version)))
+      .set("contentChanges", move(ar)));
+    client^.sendMessage(j.dump());
   } else
     client^.sendFileOpenedNotification(path, content);
 }
 
 export void sendFileOpenedNotification(LspClient mutable* client, string path, string* content) {
   client^.documentVersions.insert(path, 0);
-  mutable didOpen = json_object();
-  didOpen["jsonrpc"] = json("2.0");
-  didOpen["method"] = json("textDocument/didOpen");
-  mutable params = json_object();
-  params["textDocument"]["uri"] = json("file://" + path);
-  params["textDocument"]["version"] = json(0);
-  params["textDocument"]["languageId"] = json("cpp");
-  params["textDocument"]["text"] = json(*content);
-  didOpen["params"] = move(params);
-  client^.sendMessage(didOpen.dump());
+  const j = getMethod("textDocument/didOpen", null, json_object()
+    .set("textDocument", getUri(path)
+        .set("version", json(0))
+        .set("languageId", json("cpp"))
+        .set("text", json(*content))
+    ));
+  client^.sendMessage(j.dump());
 }
 
 export void initialize(LspClient mutable* client, string homeDir) {
-  const msg = [homeDir] -> json {
-    embed_returns {
-      return json {
-        {"jsonrpc", "2.0"},
-        {"method", "initialize"},
-        {"params", {
-          {"capabilities", {
-            {"textDocument", {
-              {"completion", {
-                {"completionItem", {{"snippetSupport", false}}}
-              }},
-              {"signatureHelp", {
-                {"signatureInformation", {
-                  {"parameterInformation", {{"labelOffsetSupport", true}}}}
-                }}
-              }
-            }},
-            {"workspace", {
-              {"applyEdit", true},
-              {"didChangeWatchedFiles", {
-                {"dynamicRegistration", true}
-              }}
-            }}
-          }},
-          {"rootPath", homeDir.data()},
-          {"rootUri", ("file://" + homeDir).data()},
-          {"trace", "off"}
-        }},
-        {"id", 0}
-      };
-    }
-  }();
+  mutable params = json_object();
+  const j = getMethod("initialize", client^.resultId, json_object()
+      .set("capabilities", json_object()
+          .set("textDocument", json_object()
+              .set("completion", json_object()
+                  .set("snippetSupport", json(false))
+              )
+              .set("signatureHelp", json_object()
+                  .set("signatureInformation", json_object()
+                      .set("parameterInformation", json_object()
+                          .set("labelOffsetSupport", json(true))
+                      )
+                  )
+              )
+          )
+          .set("workspace", json_object()
+              .set("applyEdit", json(true))
+              .set("didChangeWatchedFiles", json_object()
+                  .set("dynamicRegistration", json(true))
+              )
+          )
+      )
+      .set("rootPath", json(homeDir))
+      .set("rootUri", json("file://" + homeDir))
+      .set("trace", json("off"))
+  );
   client^.constructors.insert(0, [client](mutable json j) -> LspMessage? {
     j = j["capabilities"].copy();
     if (j.contains("signatureHelpProvider"))
       client^.capabilities.insert("signatureHelpProvider");
     return null;
   }.box_as<invoke<LspMessage?, json>>());
-  client^.sendMessage(msg.dump());
+  client^.sendMessage(j.dump());
   ++client^.resultId;
 }
