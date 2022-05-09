@@ -78,7 +78,7 @@ LspClientMap getLspClients(Flags* flags) {
   mutable lspClientMap = LspClientMap();
   if (!flags^.noLsp) {
     lspClientMap.addClient({"cpp", "h"}.slice(),
-        LspClient("clangd", {"--background-index"}.as_vector(), flags^.lspStderr));
+        LspClient("/home/michal/Downloads/clangd_14.0.3/bin/clangd", {"--background-index"}.as_vector(), flags^.lspStderr));
     lspClientMap.addClient({"znn"}.slice(),
         LspClient("/home/michal/zenon/zenon", {"--lsp"}.as_vector(), flags^.lspStderr));
     for (client : lspClientMap.clients)
@@ -96,7 +96,7 @@ int main(string[] args) {
   const dataDir = sdl_data_directory_path();
   mutable ui = *readUIFrom(dataDir + "ui.txt");
   mutable lspClientMap = getLspClients(&flags);
-  const window = *sdl_create_window(vec2(1280, 720), "ZIM", true);
+  const window = *sdl_create_window(vec2(1280, 720), "ZIM", dataDir + "icon.png", true);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
       *window.make_target_texture(vec2(100, 100)));
