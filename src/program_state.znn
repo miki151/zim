@@ -169,11 +169,11 @@ void addCursorHistory(ProgramState mutable* programState) {
   programState^.getEditorState()^.addCursorHistory(editorData^.cursor, programState^.currentBuffer);
 }
 
-EditorUIData mutable* getEditorData(ProgramState mutable* programState, string path) {
+EditorUIData mutable*? getEditorData(ProgramState mutable* programState, string path) {
   for (p : programState^.paths)
     if (*p == path)
       return &programState^.editorData[p.index];
-  panic("Path not opened : {path}");
+  return null;
 }
 
 EditorUIData mutable* getEditorData(ProgramState mutable* programState) {
@@ -211,19 +211,22 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
     if (const msg = lspClient^.getMessage())
       switch (*msg) {
         case (diagnostic) {
-          programState^.getEditorData(diagnostic.file)^.diagnostics = diagnostic.locations.copy();
+          if (const data = programState^.getEditorData(diagnostic.file))
+            data^^.diagnostics = diagnostic.locations.copy();
         }
         case (definitionResult) {
           programState^.goToPosition(definitionResult.file, definitionResult.position);
         }
         case (referencesResult) {
           programState^.previousLocationSearch = SearchInfo(null,
-              referencesResult.transform([programState](LspDefinitionResult* r) {
+              referencesResult.filter([programState](LspDefinitionResult* r) {
+                return !!programState^.getEditorData(r^.file);
+              }).transform([programState](LspDefinitionResult* r) {
                 const data = programState^.getEditorData(r^.file);
                 return LocationResult(
-                    data^.buffer.text[r^.position.y],
+                    data^^.buffer.text[r^.position.y],
                     r^.position.y + 1,
-                    data^.buffer.index
+                    data^^.buffer.index
                 );
               }));
           programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
@@ -297,6 +300,25 @@ bool isCppFile(string path) {
   return path.ends_with(&".cpp") || path.ends_with(&".h");
 }
 
+void closeCurrentBuffer(ProgramState mutable* programState) {
+  const index = programState^.currentBuffer;
+  programState^.paths.remove(index);
+  programState^.editorData.remove(index);
+  programState^.bufferOrder.remove(*programState^.bufferOrder.find(&index));
+  for (elem : programState^.bufferOrder)
+    if (*elem > index)
+      --*elem;
+  for (i = index; i < programState^.editorData.size(); ++i)
+    --programState^.editorData[i].buffer.index;
+  const state = programState^.getEditorState();
+  for (elem : state^.cursorHistory) {
+    if (elem^.bufferIndex > index)
+      --elem^.bufferIndex;
+  }
+  state^.cursorHistory = state^.cursorHistory.filter([&](CursorData* elem) { return elem^.bufferIndex != index;});
+  programState^.currentBuffer = programState^.bufferOrder[0];
+}
+
 export void addPermanentCallbacks(ProgramState mutable* programState, bool mutable* exit,
     LspClientMap mutable* lspClientMap) {
   programState^.uiData.insert("exit_callback", [programState, exit] {
@@ -340,6 +362,19 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       ));
       programState^.currentBuffer = programState^.editorData.size() - 1;
     }.box_as<invoke<void>>());
+  }.box_as<UICallback>().box_as<any>());
+  programState^.uiData.insert("close_file_callback", [programState, exit
+  ] {
+    if (programState^.paths.size() == 1)
+      setPrompt(programState, "Exit?", [exit] { *exit = true; }.box_as<invoke<void>>());
+    else
+    if (programState^.getEditorData()^.buffer.isModified())
+      setPrompt(programState, "Discard unsaved changes?", [programState] { programState^.closeCurrentBuffer(); }
+          .box_as<invoke<void>>());
+    else
+      programState^.toDo.push_back([programState] {
+        programState^.closeCurrentBuffer();
+      }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("switch_buffer_callback1", [programState] {
     switchBufferDownCallback(programState);

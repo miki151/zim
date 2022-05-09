@@ -29,6 +29,8 @@ export struct LspDefinitionResult {
   string file;
 };
 
+export LspDefinitionResult copy(LspDefinitionResult*) = default;
+
 export struct LspCompletionOption {
   string label;
   string text;

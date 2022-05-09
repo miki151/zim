@@ -33,6 +33,8 @@ export struct CursorData {
   int bufferIndex;
 };
 
+export CursorData implicit_copy(CursorData*) = default;
+
 export void addCursorHistory(EditorUIState mutable* state, vec2 pos, int bufferIndex) {
   state^.cursorHistory.push_back(CursorData(pos, bufferIndex));
   state^.cursorForward.clear();
