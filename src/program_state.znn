@@ -215,7 +215,11 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
             data^^.diagnostics = diagnostic.locations.copy();
         }
         case (definitionResult) {
-          programState^.goToPosition(definitionResult.file, definitionResult.position);
+          if (!programState^.getEditorData(definitionResult.file)) {
+            programState^.openFile(definitionResult.file);
+            programState^.goToPositionNoHistory(definitionResult.file, definitionResult.position);
+          } else
+            programState^.goToPosition(definitionResult.file, definitionResult.position);
         }
         case (referencesResult) {
           programState^.previousLocationSearch = SearchInfo(null,
@@ -288,6 +292,10 @@ void doSearchRepeat(ProgramState mutable* programState, bool reverse) {
 
 export void goToPosition(ProgramState mutable* programState, string path, vec2 position) {
   programState^.addCursorHistory();
+  programState^.goToPositionNoHistory(path, position);
+}
+
+export void goToPositionNoHistory(ProgramState mutable* programState, string path, vec2 position) {
   for (p : programState^.paths)
     if (*p == path) {
       programState^.switchToBuffer(p.index);
@@ -319,6 +327,23 @@ void closeCurrentBuffer(ProgramState mutable* programState) {
   programState^.currentBuffer = programState^.bufferOrder[0];
 }
 
+void openFile(ProgramState mutable* programState, string path) {
+  programState^.addCursorHistory();
+  if (!programState^.paths.find(&path)) {
+    programState^.paths.push_back(path);
+    programState^.bufferOrder.insert(0, programState^.paths.size() - 1);
+    programState^.editorData.push_back(EditorUIData(
+      Buffer(programState^.paths.size() - 1, *get_modification_time(path), *open_file_r(path)^.read_content()),
+      vec2(0, 0),
+      vec2(0, 0),
+      null,
+      &programState^.highlighter,
+      vector<LspDiagnosticLocation>()
+    ));
+    programState^.currentBuffer = programState^.editorData.size() - 1;
+  }
+}
+
 export void addPermanentCallbacks(ProgramState mutable* programState, bool mutable* exit,
     LspClientMap mutable* lspClientMap) {
   programState^.uiData.insert("exit_callback", [programState, exit] {
@@ -330,21 +355,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("open_file_callback", [programState] {
     programState^.toDo.push_back([programState] {
-      for (file : getOpenFiles("Open file(s):")) {
-        if (!programState^.paths.find(&*file)) {
-          programState^.paths.push_back(*file);
-          programState^.bufferOrder.insert(0, programState^.paths.size() - 1);
-          programState^.editorData.push_back(EditorUIData(
-            Buffer(programState^.paths.size() - 1, *get_modification_time(*file), *open_file_r(*file)^.read_content()),
-            vec2(0, 0),
-            vec2(0, 0),
-            null,
-            &programState^.highlighter,
-            vector<LspDiagnosticLocation>()
-          ));
-          programState^.currentBuffer = programState^.editorData.size() - 1;
-        }
-      }
+      for (file : getOpenFiles("Open file(s):"))
+        programState^.openFile(*file);
     }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("new_file_callback", [programState] {
