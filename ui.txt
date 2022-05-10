@@ -104,13 +104,14 @@ Def FontSize 17 End
       position(CENTER, label("Y/N", 20, 255 255 255))
     })
   }) 
-  using "next_buffer_path" position(CENTER, max_height 540 {
-    fill(BorderColor)
+  using "next_buffer_path" position(CENTER, max_height 548 {
+    fill(0 0 0)
     frame(1, 255 255 255)
-    margins(1, list {
+    margins(5, list {
       using "selected" fill(UnsavedColor)
-      using "text" text(20, 255 255 255)
-      if "errors" using "text" text(20, 150 0 0)
+      using "text" horizontal { width 5 {} text(20, 255 255 255) width 35 {} }
+      if "errors" position(RIGHT_CENTER, horizontal { label("✗", 20, 255 0 0) width 5 {}})
+      if "updated" position(RIGHT_CENTER, horizontal { label("✓", 20, 0 255 0) width 5 {}}  )
     })
   })
   using "search_content" position(BOTTOM_RIGHT, {

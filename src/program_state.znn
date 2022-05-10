@@ -186,7 +186,23 @@ EditorUIState mutable* getEditorState(ProgramState mutable* programState) {
   return programState^.uiState.get_state<EditorUIState>();
 }
 
-export bool updateLspContent(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
+export void updateOtherLspContent(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
+  mutable int? index = null;
+  for (path : programState^.paths)
+    if (!!*path && !programState^.editorData[path.index].buffer.lspUpdated &&
+        !!lspClientMap^.getClient(**path) &&
+        (!index || programState^.editorData[path.index].buffer.origLastModified >
+        programState^.editorData[*index].buffer.origLastModified))
+      index = path.index;
+  if (index) {
+    const buffer = &programState^.editorData[*index].buffer;
+    buffer^.lspUpdated = true;
+    const path = programState^.paths[*index];
+    lspClientMap^.getClient(*path)^^.sendFileChangedNotification(*path, &buffer^.joinLines());  
+  }
+}
+
+export bool updateCurrentLspContent(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
   mutable data = programState^.getEditorData();
   mutable ret = false;
   if (const path = programState^.paths[data^.buffer.index]) {
@@ -814,6 +830,8 @@ export void addConditionalCallbacks(ProgramState mutable* programState) {
         r.insert("selected", 1.box_as<any>());
       if (!programState^.editorData[bufferIndex].diagnostics.empty())
         r.insert("errors", 1.box_as<any>());
+      else if (programState^.editorData[bufferIndex].buffer.lspUpdated)
+        r.insert("updated", 1.box_as<any>());
       v.push_back(move(r).box_as<any>());
     }
     programState^.uiData.insert("next_buffer_path", move(v).box_as<any>());

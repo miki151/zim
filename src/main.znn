@@ -119,6 +119,11 @@ int main(string[] args) {
       vector<LspDiagnosticLocation>(),
     ));
   }
+  programState.bufferOrder.sort(&[&] (int* i1, int* i2) {
+    return programState.editorData[*i1].buffer.origLastModified > 
+        programState.editorData[*i2].buffer.origLastModified;
+  });
+  programState.currentBuffer = programState.bufferOrder[0];
   mutable exit = false;
   programState.addPermanentCallbacks(&exit, &lspClientMap);
   programState.uiData.insert("ui_refresh_callback", [&] {
@@ -132,6 +137,7 @@ int main(string[] args) {
   mutable eventsState = SDLEventsState();
   mutable lastContentCheck = current_time_milli();
   mutable lastLspRequest = current_time_milli();
+  mutable lastOtherContentRequest = current_time_milli();
   while (!exit) {
     const curTime = current_time_milli();
     programState.handleLspMessages(&lspClientMap);
@@ -139,8 +145,12 @@ int main(string[] args) {
       lastContentCheck = curTime;
       window.updateOutOfDateContent(&programState);
     }
-    if (curTime > lastLspRequest + 500 && programState.updateLspContent(&lspClientMap))
-        lastLspRequest = curTime;
+    if (curTime > lastLspRequest + 500 && programState.updateCurrentLspContent(&lspClientMap))
+      lastLspRequest = curTime;
+    if (curTime > lastOtherContentRequest + 5000) {
+      programState.updateOtherLspContent(&lspClientMap);
+      lastOtherContentRequest = curTime;
+    }
     window.setTitle(programState.getBufferName(programState.currentBuffer));
     while (!programState.toDo.empty()) {
       programState.toDo.back()^^();
