@@ -116,9 +116,27 @@ string? readMessage(LspClient mutable* client) {
   return null;
 }
 
+string urlDecode(string src) {
+  mutable ret = "";
+  for (i = 0; i < src.size(); ++i) {
+    if (src[i] == '%') {
+      mutable ch = ' ';
+      embed {
+        int ii;
+        sscanf(src.data() + i + 1, "%x", &ii);
+        ch=static_cast<char>(ii);
+        i += 2;
+      }
+      ret += ch;
+    } else
+      ret += src[i];
+  }
+  return move(ret);
+}
+
 string uriToPath(string uri) {
   assert(uri.starts_with(&"file://"));
-  return uri.substring("file://".size());
+  return uri.substring("file://".size()).urlDecode();
 }
 
 export LspMessage? getMessage(LspClient mutable* client) {
