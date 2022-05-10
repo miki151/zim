@@ -67,14 +67,7 @@ void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programStat
     }
 }
 
-string getCurrentDir() {
-  embed_returns {
-    return zenon_string::owned(std::filesystem::current_path().string().data());
-  }
-}
-
-LspClientMap getLspClients(Flags* flags) {
-  const currentDir = getCurrentDir();
+LspClientMap getLspClients(Flags* flags, string currentDir) {
   mutable lspClientMap = LspClientMap();
   if (!flags^.noLsp) {
     lspClientMap.addClient({"cpp", "h"}.slice(),
@@ -88,6 +81,7 @@ LspClientMap getLspClients(Flags* flags) {
 }
 
 int main(string[] args) {
+  const currentDir = get_canonical_path("./");
   const flags = *read_flags<Flags>(args);
   const panic_handler = [](string s) { printf("{s}\n"); exit(0); };
   if (!flags.noPanicHandler)
@@ -95,7 +89,7 @@ int main(string[] args) {
   *sdl_init();
   const dataDir = sdl_data_directory_path();
   mutable ui = *readUIFrom(dataDir + "ui.txt");
-  mutable lspClientMap = getLspClients(&flags);
+  mutable lspClientMap = getLspClients(&flags, currentDir);
   const window = *sdl_create_window(vec2(1280, 720), "ZIM", dataDir + "icon.png", true);
   mutable font = *window.loadSDLFont(flags.font ?? dataDir + "font.ttf", 10, 100);
   const canvas = SDLCanvas(&window, &font, hash_map<string, sdl_texture>(),
@@ -110,7 +104,8 @@ int main(string[] args) {
   mutable uiBounds = rectangle(vec2(0, 0), window.size());
   mutable programState = ProgramState(
       move(paths),
-      Highlighter("/usr/share/source-highlight/", "zenon.lang")
+      Highlighter("/usr/share/source-highlight/", "zenon.lang"),
+      currentDir
   );
   for (path : programState.paths) {
     programState.bufferOrder.push_back(path.index);
