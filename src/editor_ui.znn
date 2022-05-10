@@ -467,6 +467,21 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else
         return false;
     }
+    case (E) {
+      if (lctrl) {
+        mutable int? nextLine = null;
+        for (d : data^.diagnostics) {
+          const dist = (d^.startPos.y - data^.cursor.y + data^.buffer.text.size() - 1) % data^.buffer.text.size() + 1;
+          if (!nextLine || dist < *nextLine)
+            nextLine = dist;
+        }
+        if (nextLine) {
+          state^.addCursorHistory(data^.cursor, data^.buffer.index);
+          data^.cursor = vec2(0, (data^.cursor.y + *nextLine) % data^.buffer.text.size());
+        }
+      } else
+        return false;
+    }
     default {
       return false;
     }
