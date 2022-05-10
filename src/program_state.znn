@@ -799,7 +799,8 @@ export void addConditionalCallbacks(ProgramState mutable* programState) {
     for (i : range(programState^.nextBuffer^.scrollPos,
         min(programState^.paths.size(), programState^.nextBuffer^.scrollPos + 20))) {
       mutable r = UIRecord();
-      mutable bufferName = programState^.getBufferName(programState^.bufferOrder[i]);
+      const bufferIndex = programState^.bufferOrder[i];
+      mutable bufferName = programState^.getBufferName(bufferIndex);
       if (bufferName.starts_with(&programState^.basePath)) {
         bufferName = bufferName.substring(programState^.basePath.size());
         if (bufferName.starts_with(&"/"))
@@ -808,6 +809,8 @@ export void addConditionalCallbacks(ProgramState mutable* programState) {
       r.insert("text", bufferName.box_as<any>());
       if (i == programState^.nextBuffer^.index)
         r.insert("selected", 1.box_as<any>());
+      if (!programState^.editorData[bufferIndex].diagnostics.empty())
+        r.insert("errors", 1.box_as<any>());
       v.push_back(move(r).box_as<any>());
     }
     programState^.uiData.insert("next_buffer_path", move(v).box_as<any>());
