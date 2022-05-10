@@ -74,7 +74,6 @@ export struct LspSignature {
 export LspSignature copy(LspSignature*) = default;
 
 export union LspMessage {
-  LspDefinitionResult definitionResult;
   vector<LspDefinitionResult> referencesResult;
   LspDiagnostic diagnostic;
   LspCompletionResult completionResult;
@@ -199,16 +198,20 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
       .set("textDocument", getUri(path))
       .set("position", getPosition(position)));
   client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
-    if (j.is_array()) {
-      if (j.empty())
-        return null;
-      j = j[0].copy();
+    if (!j.is_array()) {
+      mutable ar = json_array();
+      ar.push_back(j.copy());
+      j = move(ar);
     }
-    return LspMessage::definitionResult(LspDefinitionResult(
-      vec2(j["range"]["start"]["character"].get<int>(),
-          j["range"]["start"]["line"].get<int>()),
-      uriToPath(j["uri"].get<string>())
-    ));
+    mutable ret = vector<LspDefinitionResult>();
+    for (elem : j) {
+      ret.push_back(LspDefinitionResult(
+        vec2(elem^["range"]["start"]["character"].get<int>(),
+            elem^["range"]["start"]["line"].get<int>()),
+        uriToPath(elem^["uri"].get<string>())
+      ));
+    }
+    return LspMessage::referencesResult(move(ret));
   }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());
   ++client^.resultId;

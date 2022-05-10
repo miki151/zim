@@ -216,26 +216,29 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
           if (const data = programState^.getEditorData(diagnostic.file))
             data^^.diagnostics = diagnostic.locations.copy();
         }
-        case (definitionResult) {
-          if (!programState^.getEditorData(definitionResult.file)) {
-            programState^.openFile(definitionResult.file);
-            programState^.goToPositionNoHistory(definitionResult.file, definitionResult.position);
-          } else
-            programState^.goToPosition(definitionResult.file, definitionResult.position);
-        }
         case (referencesResult) {
-          programState^.previousLocationSearch = SearchInfo(null,
-              referencesResult.filter([programState](LspDefinitionResult* r) {
-                return !!programState^.getEditorData(r^.file);
-              }).transform([programState](LspDefinitionResult* r) {
-                const data = programState^.getEditorData(r^.file);
-                return LocationResult(
-                    data^^.buffer.text[r^.position.y],
-                    r^.position.y + 1,
-                    data^^.buffer.index
-                );
-              }));
-          programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
+          if (referencesResult.size() == 1) {
+            const result = &referencesResult[0];
+            if (!programState^.getEditorData(result^.file)) {
+              programState^.openFile(result^.file);
+              programState^.goToPositionNoHistory(result^.file, result^.position);
+            } else
+              programState^.goToPosition(result^.file, result^.position);
+          } else
+          if (!referencesResult.empty()) {
+            programState^.previousLocationSearch = SearchInfo(null,
+                referencesResult.transform([programState](LspDefinitionResult* r) {
+                  if (!!programState^.getEditorData(r^.file))
+                    programState^.openFile(r^.file);
+                  const data = programState^.getEditorData(r^.file);
+                  return LocationResult(
+                      data^^.buffer.text[r^.position.y],
+                      r^.position.y + 1,
+                      data^^.buffer.index
+                  );
+                }));
+            programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
+          }
         }
         case (completionResult) {
           if (completionResult.options.size() == 1) {
