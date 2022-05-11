@@ -86,6 +86,8 @@ class LspClientBase {
       argv.push_back(nullptr);
       char * envp[] = {nullptr}; 
       execvpe(serverCommand.data(), argv.data(), envp);
+      fprintf(stderr, "Error running %s: %s\n", serverCommand.data(), strerror(errno));
+      assert(false);
     }
   }
 
