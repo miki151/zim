@@ -2,6 +2,7 @@
 export import "std/vector.znn";
 export import "ui/vec2.znn";
 import "std/math.znn";
+import "util.znn";
 
 export struct HistoryElem {
   vector<string> text;
@@ -50,16 +51,6 @@ export Buffer(int index, milliseconds_t origLastModified, string content) {
 
 export bool isModified(Buffer* buffer) {
   return buffer^.text != buffer^.origText;
-}
-
-export vector<string> breakLines(string content) {
-  mutable ret = {""}.as_vector();
-  for (c : content)
-    if (*c == '\n')
-      ret.push_back("");
-    else
-      *ret.back() += *c;
-  return move(ret);
 }
 
 export string joinLines(Buffer* buffer) {

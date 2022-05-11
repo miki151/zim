@@ -227,10 +227,8 @@ export bool updateCurrentLspContent(ProgramState mutable* programState, LspClien
         }
       }
       const state = programState^.getEditorState();
-      if (!programState^.hover ||
-          !posInRange(data^.cursor, programState^.hover^.startPos, programState^.hover^.endPos) ||
-          programState^.hover^.file != *path) {
-        //state^.mouseHover = false;
+      if (!programState^.hover || programState^.hover^.file != *path ||
+          !posInRange(data^.cursor, programState^.hover^.startPos, programState^.hover^.endPos)) {
         if (lspClient^^.sendHoverRequest(*path, data^.cursor)) {
           printf("Hover request\n");
           ret = ret || true;
@@ -284,7 +282,6 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
           programState^.signature = signature.copy();
         }
         case (hover) {
-//          printf("Hover {hover.content}\n");
           programState^.hover = hover.copy();
         }
       }

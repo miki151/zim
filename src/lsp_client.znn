@@ -3,12 +3,12 @@ export import "std/hash_map.znn";
 export import "std/hash_set.znn";
 export import "std/box.znn";
 export import "std/vector.znn";
+export import "ui/vec2.znn";
 import "std/enum.znn";
 import "std/io.znn";
 
 import "json.znn";
-export import "ui/vec2.znn";
-import "buffer.znn";
+import "util.znn";
 
 export embed {
  #include "lsp_client_base.h"
@@ -229,8 +229,8 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
 }
 
 export bool sendHoverRequest(LspClient mutable* client, string path, vec2 position) {
-  /*if (!client^.capabilities.contains(&"signatureHelpProvider"))
-    return false;*/
+  if (!client^.capabilities.contains(&"hoverProvider"))
+    return false;
   const j = getMethod("textDocument/hover", client^.resultId, json_object()
       .set("textDocument", getUri(path))
       .set("position", getPosition(position)));
@@ -368,8 +368,12 @@ export void initialize(LspClient mutable* client, string homeDir) {
   );
   client^.constructors.insert(0, [client](mutable json j) -> LspMessage? {
     j = j["capabilities"].copy();
-    if (j.contains("signatureHelpProvider"))
-      client^.capabilities.insert("signatureHelpProvider");
+    const check = [&](string name) {
+      if (j.contains(name) && (!j[name].is<bool>() || !!j[name].get<bool>()))
+        client^.capabilities.insert(name);
+    };
+    check("signatureHelpProvider");
+    check("hoverProvider");
     return null;
   }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());

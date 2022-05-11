@@ -7,6 +7,7 @@ import "std/time.znn";
 export import "highlighter.znn";
 export import "std/enum_map.znn";
 export import "lsp_client.znn";
+import "util.znn";
 
 export [@ui_element]
 struct EditorUI {
@@ -58,12 +59,11 @@ export struct EditorUIState {
   vector<CursorData> cursorHistory;
   vector<CursorData> cursorForward;
   vec2? lastMousePos;
-  bool mouseHover;
 };
 
 export EditorUIState() {
   return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)),
-      vector<CursorData>(), vector<CursorData>(), null, false);
+      vector<CursorData>(), vector<CursorData>(), null);
 }
 
 export struct EditorUIData {
@@ -528,13 +528,6 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
         state->mouseSelection = false;
         return true;
       }
-    }
-    case (RIGHT) {
-      if (!r^.contains(&event^.pos))
-        return false;
-      const textSize = context.canvas->getTextSize(" ", editor->fontSize);
-      state^.lastMousePos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
-      state^.mouseHover = true;
     }
     case (LEFT) {
       if (!r^.contains(&event^.pos))

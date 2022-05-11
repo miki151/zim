@@ -30,7 +30,7 @@ export json(string s) {
   }
 }
 
-export template<T> requires (T == int || T == string)
+export template<T> requires (T == int || T == string || T == bool)
 T get(json* j) {
   static if (T == string) {
     embed_returns {
@@ -42,6 +42,16 @@ T get(json* j) {
       return j->get<T>();
     }
   }
+}
+
+export template<T> requires (T == int || T == string || T == bool)
+bool is(json* j) {
+  static if (T == int)
+    embed_returns { return j->is_number(); }
+  static if (T == bool)
+    embed_returns { return j->is_boolean(); }
+  static if (T == string)
+    embed_returns { return j->is_string(); }  
 }
 
 export bool contains(json* j, string s) {

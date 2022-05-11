@@ -1,0 +1,13 @@
+
+export import "std/vector.znn";
+
+export vector<string> breakLines(string content) {
+  mutable ret = {""}.as_vector();
+  for (c : content)
+    if (*c == '\n')
+      ret.push_back("");
+    else
+      *ret.back() += *c;
+  return move(ret);
+}
+

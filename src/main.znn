@@ -21,6 +21,7 @@ import "highlighter.znn";
 import "program_state.znn";
 import "lsp_client.znn";
 import "lsp_client_map.znn";
+import "util.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
