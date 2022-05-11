@@ -261,7 +261,7 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
           if (!referencesResult.empty()) {
             programState^.previousLocationSearch = SearchInfo(null,
                 referencesResult.transform([programState](LspDefinitionResult* r) {
-                  if (!!programState^.getEditorData(r^.file))
+                  if (!programState^.getEditorData(r^.file))
                     programState^.openFile(r^.file);
                   const data = programState^.getEditorData(r^.file);
                   return LocationResult(
