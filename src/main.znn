@@ -71,7 +71,7 @@ LspClientMap getLspClients(Flags* flags, string currentDir) {
   mutable lspClientMap = LspClientMap();
   if (!flags^.noLsp) {
     lspClientMap.addClient({"cpp", "h"}.slice(),
-        LspClient("/home/michal/Downloads/clangd_14.0.3/bin/clangd", {"--background-index"}.as_vector(), flags^.lspStderr));
+        LspClient("clangd", {"--background-index"}.as_vector(), flags^.lspStderr));
     lspClientMap.addClient({"znn"}.slice(),
         LspClient("/home/michal/zenon/zenon", {"--lsp"}.as_vector(), flags^.lspStderr));
     for (client : lspClientMap.clients)
