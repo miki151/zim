@@ -1,0 +1,8 @@
+
+
+include "cpp.lang"
+
+type = "byte|string"
+
+keyword = "export|mixin|embed|import|embed_returns"
+

@@ -58,11 +58,12 @@ export struct EditorUIState {
   vector<CursorData> cursorHistory;
   vector<CursorData> cursorForward;
   vec2? lastMousePos;
+  bool mouseHover;
 };
 
 export EditorUIState() {
   return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)),
-      vector<CursorData>(), vector<CursorData>(), null);
+      vector<CursorData>(), vector<CursorData>(), null, false);
 }
 
 export struct EditorUIData {
@@ -527,6 +528,13 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
         state->mouseSelection = false;
         return true;
       }
+    }
+    case (RIGHT) {
+      if (!r^.contains(&event^.pos))
+        return false;
+      const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+      state^.lastMousePos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
+      state^.mouseHover = true;
     }
     case (LEFT) {
       if (!r^.contains(&event^.pos))

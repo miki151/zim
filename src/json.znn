@@ -72,6 +72,12 @@ export bool empty(json* j) {
   return j^.size() == 0;
 }
 
+export bool is_null(json* j) {
+  embed_returns {
+    return *j == nullptr;
+  }
+}
+
 export bool is_array(json* j) {
   embed_returns {
     return j->is_array();

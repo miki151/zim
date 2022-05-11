@@ -1,0 +1,5 @@
+*.swp
+test.txt
+.build_cache
+main
+

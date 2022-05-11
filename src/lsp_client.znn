@@ -8,6 +8,7 @@ import "std/io.znn";
 
 import "json.znn";
 export import "ui/vec2.znn";
+import "buffer.znn";
 
 export embed {
  #include "lsp_client_base.h"
@@ -73,11 +74,21 @@ export struct LspSignature {
 
 export LspSignature copy(LspSignature*) = default;
 
+export struct LspHoverResult {
+  vector<string> content;
+  string file;
+  vec2 startPos;
+  vec2 endPos;
+};
+
+export LspHoverResult copy(LspHoverResult*) = default;
+
 export union LspMessage {
   vector<LspDefinitionResult> referencesResult;
   LspDiagnostic diagnostic;
   LspCompletionResult completionResult;
   LspSignature signature;
+  LspHoverResult hover;
 };
 
 export struct LspClient {
@@ -215,6 +226,34 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
   }.box_as<invoke<LspMessage?, json>>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
+}
+
+export bool sendHoverRequest(LspClient mutable* client, string path, vec2 position) {
+  /*if (!client^.capabilities.contains(&"signatureHelpProvider"))
+    return false;*/
+  const j = getMethod("textDocument/hover", client^.resultId, json_object()
+      .set("textDocument", getUri(path))
+      .set("position", getPosition(position)));
+  client^.constructors.insert(client^.resultId, [path, position](mutable json j) -> LspMessage? {
+    mutable startPos = position;
+    mutable endPos = position;
+    mutable content = vector<string>();
+    if (!j.is_null())
+      content = breakLines(j["contents"]["value"].get<string>());
+    if (j.contains("range")) {
+      startPos = vec2(j["range"]["start"]["character"].get<int>(), j["range"]["start"]["line"].get<int>());
+      endPos = vec2(j["range"]["end"]["character"].get<int>(), j["range"]["end"]["line"].get<int>());
+    }
+    return LspMessage::hover(LspHoverResult(
+      move(content),
+      path,
+      startPos,
+      endPos
+    ));
+  }.box_as<invoke<LspMessage?, json>>());
+  client^.sendMessage(j.dump());
+  ++client^.resultId;
+  return true;
 }
 
 export bool sendSignatureRequest(LspClient mutable* client, string path, vec2 position) {

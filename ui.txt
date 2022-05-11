@@ -56,11 +56,17 @@ Def FontSize 17 End
         using "no_changes" fill(SavedColor)
       }
     }
-  using "signatures" position(TOP_LEFT, margins(5, {
-    fill(0 0 0)
-    frame(1, 255 255 255)
-    margins(5, list text(FontSize, 255 255 255))
-  }))    }
+    using "signatures" position(TOP_LEFT, margins(5, {
+      fill(0 0 0)
+      frame(1, 255 255 255)
+      margins(5, list text(FontSize, 255 255 255))
+    })) 
+    using "hoverText" position(TOP_RIGHT, margins(7, {
+      fill(0 0 0)
+      frame(1, 255 255 255)
+      margins(5, list max_width 400 text(FontSize, 255 255 255))
+    })) 
+    }
     using "location_results" position(BOTTOM_STRETCHED, max_height 472 {
       fill(0 0 0)
       frame(1, 255 255 255)

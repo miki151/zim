@@ -143,6 +143,7 @@ export struct ProgramState {
   vector<box<invoke<void>>> toDo;
   Highlighter highlighter;
   LspSignature? signature;
+  LspHoverResult? hover;
   string basePath;
 };
 
@@ -162,6 +163,7 @@ export ProgramState(vector<string?> paths, Highlighter highlighter, string baseP
     .toDo = vector<box<invoke<void>>>(),
     .highlighter = move(highlighter),
     .signature = null,
+    .hover = null,
     .basePath = basePath
   );
 }
@@ -202,8 +204,13 @@ export void updateOtherLspContent(ProgramState mutable* programState, LspClientM
   }
 }
 
+bool posInRange(vec2 pos, vec2 start, vec2 end) {
+  return (pos.y > start.y || (pos.y == start.y && pos.x >= start.x)) && 
+      (pos.y < end.y || (pos.y == end.y && pos.x <= end.x));
+}
+
 export bool updateCurrentLspContent(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
-  mutable data = programState^.getEditorData();
+  const data = programState^.getEditorData();
   mutable ret = false;
   if (const path = programState^.paths[data^.buffer.index]) {
     if (const lspClient = lspClientMap^.getClient(*path)) {
@@ -216,6 +223,16 @@ export bool updateCurrentLspContent(ProgramState mutable* programState, LspClien
           programState^.signature^.file != *path) {
         if (lspClient^^.sendSignatureRequest(*path, data^.cursor)) {
           printf("Signature request\n");
+          ret = ret || true;
+        }
+      }
+      const state = programState^.getEditorState();
+      if (!programState^.hover ||
+          !posInRange(data^.cursor, programState^.hover^.startPos, programState^.hover^.endPos) ||
+          programState^.hover^.file != *path) {
+        //state^.mouseHover = false;
+        if (lspClient^^.sendHoverRequest(*path, data^.cursor)) {
+          printf("Hover request\n");
           ret = ret || true;
         }
       }
@@ -265,6 +282,10 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
         }
         case (signature) {
           programState^.signature = signature.copy();
+        }
+        case (hover) {
+//          printf("Hover {hover.content}\n");
+          programState^.hover = hover.copy();
         }
       }
 }
@@ -607,7 +628,16 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
   programState^.uiData.erase(&"completion_results");
   programState^.uiData.erase(&"file_results");
   programState^.uiData.erase(&"signatures");
+  programState^.uiData.erase(&"hoverText");
   const editorData = programState^.getEditorData();
+  const editorState = programState^.getEditorState();
+  if (!!programState^.hover && !programState^.hover^.content.empty() &&
+      posInRange(editorData^.cursor, programState^.hover^.startPos, programState^.hover^.endPos) && 
+      programState^.paths[programState^.currentBuffer] == programState^.hover^.file) {
+    const v = programState^.hover^.content.transform(
+        [](string* s) { return s^.box_as<any>(); });
+    programState^.uiData.insert("hoverText", move(v).box_as<any>());
+  }
   if (!!programState^.signature && !programState^.signature^.elems.empty() &&
       programState^.signature^.position == editorData^.cursor && 
       programState^.paths[programState^.currentBuffer] == programState^.signature^.file) {
