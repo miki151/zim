@@ -349,6 +349,10 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
     } else
       setPrompt(programState, "Exit?", [exit] { *exit = true; }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
+  programState^.uiData.insert("switch_buffer_callback", [programState] {
+    programState^.overlayInfo = OverlayInfo::switchBuffer();
+    programState^.resetScrollingUIState(1);
+  }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("open_file_callback", [programState] {
     programState^.toDo.push_back([programState] {
       for (file : getOpenFiles("Open file(s):"))
@@ -583,10 +587,6 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
   programState^.uiData.erase(&"signatures");
   programState^.uiData.erase(&"hoverText");
   programState^.uiData.erase(&"next_buffer_path");
-  programState^.uiData.insert("switch_buffer_callback1", [programState] {
-    programState^.overlayInfo = OverlayInfo::switchBuffer();
-    programState^.resetScrollingUIState(1);
-  }.box_as<UICallback>().box_as<any>());
   const editorData = programState^.getEditorData();
   const editorState = programState^.getEditorState();
   if (!!programState^.hover && !programState^.hover^.content.empty() &&
@@ -789,7 +789,6 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
             move(v),
             move(callback).box_as<invoke<void, int>>()
         ).box_as<any>());
-        programState^.uiData.erase(&"switch_buffer_callback1");
       }
     }
 }

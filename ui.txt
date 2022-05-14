@@ -109,6 +109,7 @@ End
       position(CENTER, label("Y/N", 20, 255 255 255))
     })
   }) 
+  using "switch_buffer_callback" key_handler(TAB DOWN {LCTRL} )
   using "next_buffer_path" position(CENTER, max_height 548 {
     fill(0 0 0)
     frame(1, 255 255 255)
@@ -128,7 +129,6 @@ End
   })
   using "search_entry" text_handler()
   using "search_confirm" key_handler(ENTER DOWN {} )
-  using "switch_buffer_callback1" key_handler(TAB DOWN {LCTRL} )
   using "prompt_callback_yes" key_handler(Y DOWN {} )
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
