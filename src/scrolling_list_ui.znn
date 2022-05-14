@@ -1,0 +1,102 @@
+export import "ui/ui.znn";
+import "std/vector.znn";
+import "editor_ui.znn";
+
+export [@ui_element]
+struct ScrollingListUI {
+  vector<key_event> confirmEvent;
+  vector<key_event> downEvent;
+  vector<key_event> upEvent;
+  box<UIElement> highlight;
+  box<UIElement> elem;
+};
+
+export struct ScrollingListUIState {
+  int index;
+  int scrollPos;
+};
+
+export ScrollingListUIState() {
+  return ScrollingListUIState::ScrollingListUIState(0, 0);
+}
+
+export struct ScrollingListUIData {
+  vector<box<any>> elems;
+  box<invoke<void, int>> confirmCallback;
+};
+
+export void render(ScrollingListUI* ui, mutable UIContext context, rectangle* r) {
+  const data = context.data^.cast_to<ScrollingListUIData>();
+  const state = context.state^.get_state<ScrollingListUIState>();
+  if (!data)
+    context.canvas^.drawText(r^.v1, "scrolling list got {context.data^.get_type()}", 20, &color(255, 0, 0));
+  mutable start = r->v1.y;
+  for (dataElem : data^^.elems)
+    if (dataElem.index >= state^.scrollPos) {
+      context.data = dataElem^.get();
+      const height = ui->elem->size(context).y;
+      const bounds = rectangle(vec2(r->v1.x, start), vec2(r->v2.x, start + height));
+      if (dataElem.index == state^.index)
+        ui^.highlight^.render(context, &bounds);
+      ui->elem->render(context, &bounds);
+      start += height;
+      if (start >= r->v2.y)
+        break;
+    }
+}
+
+export vec2 size(ScrollingListUI* t, mutable UIContext context) {
+  const data = context.data^.cast_to<ScrollingListUIData>();
+  if (!data)
+    return vec2(100, 30);
+  mutable ret = vec2(0, 0);
+  for (dataElem : data^^.elems) {
+    context.data = dataElem^.get();
+    const size = t^.elem^.size(context);
+    ret.y += size.y;
+    ret.x = max(ret.x, size.x);
+  }
+  return ret;
+}
+
+export bool onKeyEvent(ScrollingListUI* ui, mutable UIContext context, rectangle* r, key_event* event) {
+    const data = context.data^.cast_to<ScrollingListUIData>();
+  const state = context.state^.get_state<ScrollingListUIState>();
+  if (!data || data^^.elems.empty())
+    return false;
+  context.data = data^^.elems.front()^.get();
+  const elemHeight = ui->elem->size(context).y;
+  const numElems = r->height() / elemHeight;
+  const covers = [](vector<key_event>* v, key_event* e) {
+    for (elem : *v)
+      if (elem^.covers(e))
+        return true;
+    return false;
+  };
+  if (covers(&ui^.confirmEvent, event)) {
+    data^^.confirmCallback^(max(0, min(data^^.elems.size() - 1, state^.index)))  ;
+  }
+  else if (covers(&ui^.upEvent, event)) {
+    if (state^.index > 0) {
+      --state^.index;
+      if (state^.index - state^.scrollPos < 2 && state^.scrollPos > 0)
+        --state^.scrollPos;
+    } else {
+      state^.index = data^^.elems.size() - 1;
+      state^.scrollPos = max(0, state^.index - numElems + 1);
+    }
+  }
+  else if (covers(&ui^.downEvent, event)) {
+    if (state^.index < data^^.elems.size() - 1) {
+      ++state^.index;
+      if (state^.index - state^.scrollPos > numElems - 3 &&
+          state^.scrollPos < data^^.elems.size() - numElems)
+        ++state^.scrollPos;
+    } else {
+      state^.index = 0;
+      state^.scrollPos = 0;
+    }
+  } else
+    return false;
+  return true;
+}

@@ -7,6 +7,10 @@ Def SavedColor 100 150 100 End
 Def UnsavedColor 200 100 100 End
 Def FontSize 17 End
 
+Def NormalScrollingList(Content)
+  scrolling_list({ENTER DOWN {}}, {DOWN DOWN {}}, {UP DOWN {}}, fill(UnsavedColor), Content)
+End
+
 {
   using "exit_callback" key_handler(ESCAPE DOWN {})
   using "save_callback" key_handler(S DOWN {LCTRL} )
@@ -70,8 +74,7 @@ Def FontSize 17 End
     using "location_results" position(BOTTOM_STRETCHED, max_height 472 {
       fill(0 0 0)
       frame(1, 255 255 255)
-      margins(1, list {
-        using "selected" fill(UnsavedColor)
+      margins(1, NormalScrollingList(
         vertical {
           using "text" text(20, 255 255 255)
           horizontal {
@@ -80,23 +83,19 @@ Def FontSize 17 End
             using "line" text(15, 200 200 200)
           }
         }
-      })
+      ))
     })
     using "file_results" position(BOTTOM_STRETCHED, max_height 544 {
       fill(0 0 0)
       frame(1, 255 255 255)
-      margins(1, list {
-        using "selected" fill(UnsavedColor)
-        using "text" text(20, 255 255 255)
-      })
+      margins(1, NormalScrollingList(using "text" text(20, 255 255 255)))
     })
     using "completion_results" position(BOTTOM_STRETCHED, max_height 544 {
       fill(0 0 0)
       frame(1, 255 255 255)
-      margins(1, list {
-        using "selected" fill(UnsavedColor)
+      margins(1, NormalScrollingList(
         using "text" text(20, 255 255 255)
-      })
+      ))
     })
   }
   using "prompt_text" key_handler(null)
@@ -113,12 +112,11 @@ Def FontSize 17 End
   using "next_buffer_path" position(CENTER, max_height 548 {
     fill(0 0 0)
     frame(1, 255 255 255)
-    margins(5, list {
-      using "selected" fill(UnsavedColor)
+    margins(5, scrolling_list({LCTRL UP {}}, {DOWN DOWN {LCTRL} TAB DOWN {LCTRL}}, {UP DOWN {LCTRL}}, fill(UnsavedColor), {
       using "text" horizontal { width 5 {} text(20, 255 255 255) width 35 {} }
       if "errors" position(RIGHT_CENTER, horizontal { label("✗", 20, 255 0 0) width 5 {}})
       if "updated" position(RIGHT_CENTER, horizontal { label("✓", 20, 0 255 0) width 5 {}}  )
-    })
+    }))
   })
   using "search_content" position(BOTTOM_RIGHT, {
     fill(BorderColor)
@@ -130,13 +128,7 @@ Def FontSize 17 End
   })
   using "search_entry" text_handler()
   using "search_confirm" key_handler(ENTER DOWN {} )
-  using "switch_buffer_callback_up" key_handler(UP DOWN {LCTRL} )
-  using "switch_buffer_callback_down" key_handler(DOWN DOWN {LCTRL} )
-  using "location_results_up" key_handler(UP DOWN {} )
-  using "location_results_down" key_handler(DOWN DOWN {} )
-  using "location_results_confirm" key_handler(ENTER DOWN {} )
   using "switch_buffer_callback1" key_handler(TAB DOWN {LCTRL} )
-  using "switch_buffer_callback2" key_handler(LCTRL UP {} )
   using "prompt_callback_yes" key_handler(Y DOWN {} )
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )

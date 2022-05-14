@@ -22,12 +22,14 @@ import "program_state.znn";
 import "lsp_client.znn";
 import "lsp_client_map.znn";
 import "util.znn";
+import "scrolling_list_ui.znn";
 
 box<UIElement>!string readUIFrom(string path) {
   const content = *open_file_r(path)^.read_content();
   mutable stream = try create_input_stream(content);
   stream.add_concept_mapping<UIElement, EditorUI>("editor");
   stream.add_concept_mapping<UIElement, ScrollbarUI>("scrollbar");
+  stream.add_concept_mapping<UIElement, ScrollingListUI>("scrolling_list");
   stream.register_ui_elems();
   return stream.read_data<box<UIElement>>();
 }
@@ -37,6 +39,10 @@ export bool round_brackets(pretty_dummy_struct<EditorUI>) {
 }
 
 export bool round_brackets(pretty_dummy_struct<ScrollbarUI>) {
+  return true;
+}
+
+export bool round_brackets(pretty_dummy_struct<ScrollingListUI>) {
   return true;
 }
 
