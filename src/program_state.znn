@@ -230,7 +230,7 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
           if (referencesResult.size() == 1) {
             const result = &referencesResult[0];
             if (!programState^.getEditorData(result^.file)) {
-              programState^.openFile(result^.file);
+              programState^.openFileAndGoTo(result^.file);
               programState^.goToPositionNoHistory(result^.file, result^.position);
             } else
               programState^.goToPosition(result^.file, result^.position);
@@ -239,7 +239,7 @@ export void handleLspMessages(ProgramState mutable* programState, LspClientMap m
             programState^.previousLocationSearch = SearchInfo(null,
                 referencesResult.transform([programState](LspDefinitionResult* r) {
                   if (!programState^.getEditorData(r^.file))
-                    programState^.openFile(r^.file);
+                    discard programState^.openFile(r^.file);
                   const data = programState^.getEditorData(r^.file);
                   return LocationResult(
                       data^^.buffer.text[r^.position.y],
@@ -323,9 +323,15 @@ void closeCurrentBuffer(ProgramState mutable* programState) {
   programState^.currentBuffer = programState^.bufferOrder[0];
 }
 
-void openFile(ProgramState mutable* programState, string path) {
+void openFileAndGoTo(ProgramState mutable* programState, string path) {
   programState^.addCursorHistory();
-  if (!programState^.paths.find(&path)) {
+  programState^.currentBuffer = programState^.openFile(move(path));
+}
+
+int openFile(ProgramState mutable* programState, string path) {
+  if (const index = programState^.paths.find(&path))
+    return *index;
+  else {
     programState^.paths.push_back(path);
     programState^.bufferOrder.insert(0, programState^.paths.size() - 1);
     programState^.editorData.push_back(EditorUIData(
@@ -336,7 +342,7 @@ void openFile(ProgramState mutable* programState, string path) {
       &programState^.highlighter,
       vector<LspDiagnosticLocation>()
     ));
-    programState^.currentBuffer = programState^.editorData.size() - 1;
+    return programState^.paths.size() - 1;
   }
 }
 
@@ -356,7 +362,7 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
   programState^.uiData.insert("open_file_callback", [programState] {
     programState^.toDo.push_back([programState] {
       for (file : getOpenFiles("Open file(s):"))
-        programState^.openFile(*file);
+        programState^.openFileAndGoTo(*file);
     }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("new_file_callback", [programState] {
