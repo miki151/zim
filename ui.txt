@@ -36,6 +36,7 @@ End
           selectionMirrorColor = 70 30 30
           mouseWheelStep = 4
           bracketHighlightColor = 100 100 50
+          trailingWhitespaceColor = 130 0 0
           syntaxColors = {
             DEFAULT 255 255 255
             KEYWORD 255 255 0
@@ -64,12 +65,12 @@ End
       fill(0 0 0)
       frame(1, 255 255 255)
       margins(5, list text(FontSize, 255 255 255))
-    })) 
+    }))
     using "hoverText" position(TOP_RIGHT, margins(7, {
       fill(0 0 0)
       frame(1, 255 255 255)
       margins(5, list max_width 400 text(FontSize, 255 255 255))
-    })) 
+    }))
     }
     using "location_results" position(BOTTOM_STRETCHED, max_height 472 {
       fill(0 0 0)
@@ -102,13 +103,13 @@ End
   using "prompt_text" position(CENTER, width 400 height 80 {
     fill(BorderColor)
     frame(1, 255 255 255)
-    position(CENTER, 
+    position(CENTER,
     vertical {
       position(CENTER, text(20, 255 255 255))
       height 5 {}
       position(CENTER, label("Y/N", 20, 255 255 255))
     })
-  }) 
+  })
   using "switch_buffer_callback" key_handler(TAB DOWN {LCTRL} )
   using "next_buffer_path" position(CENTER, max_height 548 {
     fill(0 0 0)

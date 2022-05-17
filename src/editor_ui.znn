@@ -17,6 +17,7 @@ struct EditorUI {
   color selectionMirrorColor;
   color textColor;
   color bracketHighlightColor;
+  color trailingWhitespaceColor;
   int mouseWheelStep;
   enum_map<TokenType, color> syntaxColors;
   enum_map<LspDiagnosticSeverity, color> errorColors;
@@ -234,6 +235,29 @@ void highlightBrackets(EditorUI* editor, EditorUIData* data, UICanvas* canvas, v
   }
 }
 
+void highlightSelectionMirror(EditorUI* editor, string selected, EditorUIData* data, UICanvas* canvas, vec2 textSize,
+    rectangle* r, string* lineStr, int lineIndex) {
+  for (ind = lineStr^.find(&selected); !!ind; ind = lineStr^.find(*ind + 1, &selected))
+    if (lineIndex != data^.cursor.y || (*ind != data^.cursor.x && *ind != data^.selectionStart^.x)) {
+      const spos = r->v1 + textSize.pairwise_mult(vec2(*ind, lineIndex) - data->scrollPos);
+      canvas^.fillRectangle(&rectangle(spos, spos + vec2(selected.size() * textSize.x, textSize.y)),
+          &editor->selectionMirrorColor);
+    }
+}
+
+void highlightTrailingWhitespace(EditorUI* editor, EditorUIData* data, UICanvas* canvas, vec2 textSize,
+    rectangle* r, string* lineStr, int lineIndex) {
+  const trailingSpace = [&] {
+    for (i = lineStr^.size() - 1; i >= 0; --i)
+      if (lineStr^[i] != ' ')
+        return i + 1;
+    return 0;
+  }();
+  const spos = r->v1 + textSize.pairwise_mult(vec2(trailingSpace, lineIndex) - data->scrollPos);
+  canvas->fillRectangle(&rectangle(spos, spos + textSize.pairwise_mult(vec2(lineStr^.size() - trailingSpace, 1))),
+      &editor->trailingWhitespaceColor);
+}
+
 export void render(EditorUI* editor, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
@@ -253,12 +277,8 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
       break;
     const lineStr = &data^.buffer.text[line];
     if (selected)
-      for (ind = lineStr^.find(&*selected); !!ind; ind = lineStr^.find(*ind + 1, &*selected))
-        if (line != data^.cursor.y || (*ind != data^.cursor.x && *ind != data^.selectionStart^.x)) {
-          const spos = r->v1 + textSize.pairwise_mult(vec2(*ind, line) - data->scrollPos);
-          context.canvas->fillRectangle(&rectangle(spos, spos + vec2(selected^.size() * textSize.x, textSize.y)),
-              &editor->selectionMirrorColor);
-        }
+      editor^.highlightSelectionMirror(*selected, data, context.canvas, textSize, r, lineStr, line);
+    editor^.highlightTrailingWhitespace(data, context.canvas, textSize, r, lineStr, line);
     const tokens = data^.highlighter^.getTokens(&highlighterState, *lineStr);
     mutable length = 0;
     for (token : tokens) {
