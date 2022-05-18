@@ -1,0 +1,17 @@
+{
+	"output": "main",
+	"input": "src/main.znn",
+	"g" : true,
+	"cpp_includes" : [
+		"src/",
+		"/home/michal/json/include"
+	],
+       	"cpp_libs" : [	
+		"source-highlight"
+	],
+	"zenon_libs" : [
+		"/home/michal/zenon_ui",
+		"/home/michal/zenon_pretty_archive",
+		"/home/michal/zenon_sdl"
+	]
+}
