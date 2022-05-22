@@ -111,7 +111,7 @@ End
     })
   })
   using "switch_buffer_callback" key_handler(TAB DOWN {LCTRL} )
-  using "next_buffer_path" position(CENTER, max_height 548 {
+  using "next_buffer_path" position(CENTER, max_height 847 {
     fill(0 0 0)
     frame(1, 255 255 255)
     margins(5, scrolling_list({LCTRL UP {}}, {DOWN DOWN {LCTRL} TAB DOWN {LCTRL}}, {UP DOWN {LCTRL}}, fill(UnsavedColor), {
