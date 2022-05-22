@@ -366,7 +366,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         data^.buffer.changeIndent(*data->selectionStart, data^.cursor,
             lshift ? -editor^.tabWidth : editor^.tabWidth);
       } else
-      if (lshift) 
+      if (lshift)
         data^.buffer.changeIndent(data^.cursor, data^.cursor, -editor^.tabWidth);
       else {
         mutable tabs = "";
@@ -395,7 +395,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         data->cursor.x = cursor.x - 1;
         if (lctrl) {
           const charState = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]);
-          while (data^.cursor.x > 0 && 
+          while (data^.cursor.x > 0 &&
               isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]) == charState)
             --data^.cursor.x;
         }

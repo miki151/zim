@@ -172,19 +172,19 @@ export void updateOtherLspContent(ProgramState mutable* programState, LspClientM
   for (path : programState^.paths)
     if (!!*path && !programState^.editorData[path.index].buffer.lspUpdated &&
         !!lspClientMap^.getClient(**path) &&
-        (!index || programState^.editorData[path.index].buffer.origLastModified >
-        programState^.editorData[*index].buffer.origLastModified))
+        (!index || programState^.editorData[path.index].buffer.origLastModified ?? 0.as_long() >
+        programState^.editorData[*index].buffer.origLastModified ?? 0.as_long()))
       index = path.index;
   if (index) {
     const buffer = &programState^.editorData[*index].buffer;
     buffer^.lspUpdated = true;
     const path = programState^.paths[*index];
-    lspClientMap^.getClient(*path)^^.sendFileChangedNotification(*path, &buffer^.joinLines());  
+    lspClientMap^.getClient(*path)^^.sendFileChangedNotification(*path, &buffer^.joinLines());
   }
 }
 
 bool posInRange(vec2 pos, vec2 start, vec2 end) {
-  return (pos.y > start.y || (pos.y == start.y && pos.x >= start.x)) && 
+  return (pos.y > start.y || (pos.y == start.y && pos.x >= start.x)) &&
       (pos.y < end.y || (pos.y == end.y && pos.x <= end.x));
 }
 
@@ -304,14 +304,17 @@ bool isCppFile(string path) {
   return path.ends_with(&".cpp") || path.ends_with(&".h");
 }
 
-void closeCurrentBuffer(ProgramState mutable* programState) {
-  const index = programState^.currentBuffer;
+export void closeBuffer(ProgramState mutable* programState, int index) {
   programState^.paths.remove(index);
   programState^.editorData.remove(index);
   programState^.bufferOrder.remove(*programState^.bufferOrder.find(&index));
   for (elem : programState^.bufferOrder)
     if (*elem > index)
       --*elem;
+  if (programState^.currentBuffer > index)
+    --programState^.currentBuffer;
+  else
+    programState^.currentBuffer = programState^.bufferOrder[0];
   for (i = index; i < programState^.editorData.size(); ++i)
     --programState^.editorData[i].buffer.index;
   const state = programState^.getEditorState();
@@ -320,7 +323,6 @@ void closeCurrentBuffer(ProgramState mutable* programState) {
       --elem^.bufferIndex;
   }
   state^.cursorHistory = state^.cursorHistory.filter([&](CursorData* elem) { return elem^.bufferIndex != index;});
-  programState^.currentBuffer = programState^.bufferOrder[0];
 }
 
 void openFileAndGoTo(ProgramState mutable* programState, string path) {
@@ -371,7 +373,7 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       programState^.paths.push_back(move(p));
       programState^.bufferOrder.insert(0, programState^.paths.size() - 1);
       programState^.editorData.push_back(EditorUIData(
-        Buffer(programState^.paths.size() - 1, 0, ""),
+        Buffer(programState^.paths.size() - 1, null, ""),
         vec2(0, 0),
         vec2(0, 0),
         null,
@@ -387,11 +389,12 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       setPrompt(programState, "Exit?", [exit] { *exit = true; }.box_as<invoke<void>>());
     else
     if (programState^.getEditorData()^.buffer.isModified())
-      setPrompt(programState, "Discard unsaved changes?", [programState] { programState^.closeCurrentBuffer(); }
-          .box_as<invoke<void>>());
+      setPrompt(programState, "Discard unsaved changes?", [programState] {
+          programState^.closeBuffer(programState^.currentBuffer);
+        }.box_as<invoke<void>>());
     else
       programState^.toDo.push_back([programState] {
-        programState^.closeCurrentBuffer();
+        programState^.closeBuffer(programState^.currentBuffer);
       }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
   programState^.uiData.insert("save_callback", [programState] {

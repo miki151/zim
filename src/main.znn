@@ -54,7 +54,8 @@ struct Flags {
   bool noLsp;
 };
 
-void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programState) {
+bool updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programState) {
+  mutable toClose = vector<int>();
   for (elem : programState^.editorData)
     if (const path = programState^.paths[elem.index]) {
       if (const modTime = get_modification_time(*path)) {
@@ -69,9 +70,28 @@ void updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programStat
           elem^.buffer.text = move(currentContent);
           elem^.buffer.lspUpdated = false;
         }
-      } else
-        programState^.paths[elem.index] = null;
+      }
+      else if (elem^.buffer.origLastModified)
+        toClose.push_back(elem.index);
     }
+  toClose.sort(&[](int* a, int* b) { return *a > *b; });
+  for (index : toClose) {
+    if (programState^.paths.size() == 1) {
+      if (*window^.sdl_prompt("File has been removed",
+          "File {*programState^.paths[*index]} has been removed. Exit editor, losing all changes?"))
+        return true;
+      else
+        programState^.editorData[*index].buffer.origLastModified = null;
+    } else {
+      if (*window^.sdl_prompt("File has been removed",
+          "File {*programState^.paths[*index]} has been removed. Close the buffer, losing all changes?")) {
+        programState^.closeBuffer(*index);
+      } else {
+        programState^.editorData[*index].buffer.origLastModified = null;
+      }
+    }
+  }
+  return false;
 }
 
 LspClientMap getLspClients(Flags* flags, string currentDir) {
@@ -116,9 +136,9 @@ int main(string[] args) {
   );
   for (path : programState.paths) {
     programState.bufferOrder.push_back(path.index);
-    const content = !!*path ? *open_file_r(**path)^.read_content() : "";
+    const content = (!!*path && path^^.file_exists()) ? *open_file_r(**path)^.read_content() : "";
     programState.editorData.push_back(EditorUIData(
-      Buffer(path.index, !!*path ? *get_modification_time(**path) : 0, move(content)),
+      Buffer(path.index, (!!*path && path^^.file_exists()) ? get_modification_time(**path) : null, move(content)),
       vec2(0, 0),
       vec2(0, 0),
       null,
@@ -127,8 +147,8 @@ int main(string[] args) {
     ));
   }
   programState.bufferOrder.sort(&[&] (int* i1, int* i2) {
-    return programState.editorData[*i1].buffer.origLastModified > 
-        programState.editorData[*i2].buffer.origLastModified;
+    return programState.editorData[*i1].buffer.origLastModified ?? 0.as_long() >
+        programState.editorData[*i2].buffer.origLastModified ?? 0.as_long();
   });
   programState.currentBuffer = programState.bufferOrder[0];
   mutable exit = false;
@@ -150,7 +170,8 @@ int main(string[] args) {
     programState.handleLspMessages(&lspClientMap);
     if (curTime > lastContentCheck + 500) {
       lastContentCheck = curTime;
-      window.updateOutOfDateContent(&programState);
+      if (window.updateOutOfDateContent(&programState))
+        break;
     }
     if (curTime > lastLspRequest + 500 && programState.updateCurrentLspContent(&lspClientMap))
       lastLspRequest = curTime;

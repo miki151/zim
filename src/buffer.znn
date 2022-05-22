@@ -24,7 +24,7 @@ export struct Buffer {
   int index;
   vector<string> text;
   vector<string> origText;
-  milliseconds_t origLastModified;
+  milliseconds_t? origLastModified;
   vector<HistoryElem> history;
   vector<HistoryElem> forward;
   LastEditInfo? lastEdit;
@@ -36,7 +36,7 @@ void onEdited(Buffer mutable* buffer, LastEditInfo? info) {
   buffer^.lastEdit = move(info);
 }
 
-export Buffer(int index, milliseconds_t origLastModified, string content) {
+export Buffer(int index, milliseconds_t? origLastModified, string content) {
   const lines = breakLines(move(content));
   return Buffer::Buffer(
       index,
@@ -50,7 +50,7 @@ export Buffer(int index, milliseconds_t origLastModified, string content) {
 }
 
 export bool isModified(Buffer* buffer) {
-  return buffer^.text != buffer^.origText;
+  return !buffer^.origLastModified || buffer^.text != buffer^.origText;
 }
 
 export string joinLines(Buffer* buffer) {
