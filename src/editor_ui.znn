@@ -421,7 +421,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         ++data->cursor.x;
         if (lctrl) {
           const charState = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x - 1]);
-          while (data^.cursor.x < data^.buffer.text[data^.cursor.y].size() && 
+          while (data^.cursor.x < data^.buffer.text[data^.cursor.y].size() &&
               isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]) == charState)
             ++data^.cursor.x;
         }
@@ -539,15 +539,15 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
         data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
         data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
       }
-      return true;
+      return false;
     }
     case (LEFT_RELEASED) {
       if (state->mouseSelection) {
         if (data->selectionStart == data->cursor)
           data->selectionStart = null;
         state->mouseSelection = false;
-        return true;
       }
+      return false;
     }
     case (LEFT) {
       if (!r^.contains(&event^.pos))

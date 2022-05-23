@@ -8,6 +8,14 @@ struct ScrollbarUI {
   int fontSize;
 };
 
+struct ScrollbarUIState {
+  bool held;
+};
+
+ScrollbarUIState() {
+  return ScrollbarUIState::ScrollbarUIState(false);
+}
+
 export void render(ScrollbarUI* ui, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
   const textSize = context.canvas->getTextSize(" ", ui->fontSize);
@@ -17,4 +25,32 @@ export void render(ScrollbarUI* ui, UIContext context, rectangle* r) {
   const endBar = r->v1.y + min(r->v2.y, r->height() * (data->scrollPos.y + visibleLines) / numLines);
   if (numLines > visibleLines)
     context.canvas->fillRectangle(&rectangle(vec2(r->v1.x, startBar), vec2(r->v2.x, endBar)), &ui->color);
+}
+
+export bool onMouseEvent(ScrollbarUI* ui, UIContext context, rectangle* r, mouse_event* event) {
+  const state = context.state^.get_state<ScrollbarUIState>();
+  const data = **context.data^.cast_to<EditorUIData mutable*>();
+  const textSize = context.canvas->getTextSize(" ", ui->fontSize);
+  const visibleLines = r->height() / textSize.y;
+  const numLines = data->buffer.text.size();
+  const ratio = (event^.pos.y - r^.v1.y).as_double() / r^.height();
+  const scrollLine = max(0, (numLines * ratio).as_int() - visibleLines / 2);
+  switch (event->type) {
+    case (MOUSE_MOVEMENT) {
+      if (state^.held)
+        data^.scrollPos.y = scrollLine;
+    }
+    case (LEFT_RELEASED) {
+      state^.held = false;
+    }
+    case (LEFT) {
+      if (!r^.contains(&event^.pos))
+        return false;
+      data^.scrollPos.y = scrollLine;
+      state^.held = true;
+      return true;
+    }
+    default {}
+  }
+  return false;
 }
