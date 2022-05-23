@@ -78,7 +78,7 @@ export struct EditorUIData {
 
 vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
   mutable ret = data->cursor;
-  ret.x = min(ret.x, data^.buffer.text[data->cursor.y].size());
+  ret.x = min(ret.x, data^.buffer.text[min(data^.buffer.text.size() - 1, data->cursor.y)].size());
   return move(ret);
 }
 
