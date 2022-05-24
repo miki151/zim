@@ -460,8 +460,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       const state = programState^.getEditorState();
       if (!state^.cursorHistory.empty()) {
         const data = programState^.getEditorData();
-        state^.addCursorForward(data^.cursor, programState^.currentBuffer);
         const popped = state^.cursorHistory.pop_back();
+        state^.cursorForward.push_back(CursorData(data^.cursor, programState^.currentBuffer));
         programState^.currentBuffer = popped.bufferIndex;
         state^.searchedPos = popped.pos;
       }
@@ -473,9 +473,9 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       if (!state^.cursorForward.empty()) {
         const data = programState^.getEditorData();
         const popped = state^.cursorForward.pop_back();
+        state^.cursorHistory.push_back(CursorData(data^.cursor, programState^.currentBuffer));
         programState^.currentBuffer = popped.bufferIndex;
         state^.searchedPos = popped.pos;
-        state^.cursorHistory.push_back(CursorData(data^.cursor, popped.bufferIndex));
       }
     }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());

@@ -42,10 +42,6 @@ export void addCursorHistory(EditorUIState mutable* state, vec2 pos, int bufferI
   state^.cursorForward.clear();
 }
 
-export void addCursorForward(EditorUIState mutable* state, vec2 pos, int bufferIndex) {
-  state^.cursorForward.push_back(CursorData(pos, bufferIndex));
-}
-
 export struct SearchedTextInfo {
   string text;
   bool reverse;
