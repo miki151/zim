@@ -74,7 +74,8 @@ export struct EditorUIData {
 
 vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
   mutable ret = data->cursor;
-  ret.x = min(ret.x, data^.buffer.text[min(data^.buffer.text.size() - 1, data->cursor.y)].size());
+  ret.y = min(data^.buffer.text.size() - 1, ret.y);
+  ret.x = min(ret.x, data^.buffer.text[ret.y].size());
   return move(ret);
 }
 
@@ -295,6 +296,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   if (event^.type != key_event_type::DOWN)
     return false;
   const textSize = context.canvas->getTextSize(" ", editor->fontSize);
+  const lalt = event^.modifiers.contains(key_event_modifier::LALT);
   const lctrl = event^.modifiers.contains(key_event_modifier::LCTRL);
   const lshift = event^.modifiers.contains(key_event_modifier::LSHIFT);
   if (event^.key == key_type::UP || event^.key == key_type::DOWN
@@ -358,6 +360,8 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       data->cursor.y = min(data^.buffer.text.size() - 1, data->cursor.y + r->height() / textSize.y);
     }
     case (TAB) {
+      if (lalt)
+        return false;
       if (data->selectionStart) {
         data^.buffer.changeIndent(*data->selectionStart, data^.cursor,
             lshift ? -editor^.tabWidth : editor^.tabWidth);
