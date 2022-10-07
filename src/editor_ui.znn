@@ -456,6 +456,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
             data->cursor = data^.buffer.onEnterNoHistory(data->getVisibleCursor(&data^.buffer), false);
         }
         data^.buffer.addHistory(move(textCopy), oldCursor, data^.cursor);
+        data^.buffer.onEdited(null);
         scrollAfterCursorMoved(data, context.canvas->getTextSize(" ", editor->fontSize), r);
       } else
         return false;

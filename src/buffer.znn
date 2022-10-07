@@ -31,7 +31,7 @@ export struct Buffer {
   bool lspUpdated;
 };
 
-void onEdited(Buffer mutable* buffer, LastEditInfo? info) {
+export void onEdited(Buffer mutable* buffer, LastEditInfo? info) {
   buffer^.lspUpdated = false;
   buffer^.lastEdit = move(info);
 }

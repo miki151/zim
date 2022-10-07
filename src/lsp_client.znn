@@ -102,7 +102,7 @@ export struct LspClient {
 
 export LspClient(string command, vector<string> args, bool serverStderr) {
   return LspClient::LspClient(
-      getLspClientBase(move(command), move(args), serverStderr), 
+      getLspClientBase(move(command), move(args), serverStderr),
       hash_map<int, box<invoke<LspMessage?, json>>>(),
       0,
       hash_map<string, int>(),
@@ -122,7 +122,6 @@ string? readMessage(LspClient mutable* client) {
     if (auto msg = client->client.readMessage())
       return zenon_string::owned(msg->data());
   }
-  
   return null;
 }
 
