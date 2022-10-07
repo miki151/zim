@@ -536,7 +536,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       state^.lastMousePos = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
       if (state->mouseSelection) {
         data->cursor = (event->pos - r->v1).pairwise_div(textSize) + data->scrollPos;
-        data->cursor.y = min(data->buffer.text.size() - 1, data->cursor.y);
+        data->cursor.y = max(0, min(data->buffer.text.size() - 1, data->cursor.y));
         data->cursor.x = min(data->buffer.text[data->cursor.y].size(), data->cursor.x);
       }
       return false;
