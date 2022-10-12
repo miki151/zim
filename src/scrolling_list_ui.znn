@@ -12,13 +12,9 @@ struct ScrollingListUI {
 };
 
 export struct ScrollingListUIState {
-  int index;
-  int scrollPos;
+  int index = 0;
+  int scrollPos = 0;
 };
-
-export ScrollingListUIState() {
-  return ScrollingListUIState::ScrollingListUIState(0, 0);
-}
 
 export struct ScrollingListUIData {
   vector<box<any>> elems;

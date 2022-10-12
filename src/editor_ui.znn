@@ -48,20 +48,15 @@ export struct SearchedTextInfo {
 };
 
 export struct EditorUIState {
-  bool mouseSelection;
-  SearchedTextInfo? searchedText;
-  vec2? searchedPos;
-  ClickEvent lastLeftClick;
-  ClickEvent previousLeftClick;
-  vector<CursorData> cursorHistory;
-  vector<CursorData> cursorForward;
-  vec2? lastMousePos;
+  bool mouseSelection = false;
+  SearchedTextInfo? searchedText = null;
+  vec2? searchedPos = null;
+  ClickEvent lastLeftClick = ClickEvent(0, vec2(-1, -1));
+  ClickEvent previousLeftClick = ClickEvent(0, vec2(-1, -1));
+  vector<CursorData> cursorHistory = vector<CursorData>();
+  vector<CursorData> cursorForward = vector<CursorData>();
+  vec2? lastMousePos = null;
 };
-
-export EditorUIState() {
-  return EditorUIState::EditorUIState(false, null, null, ClickEvent(0, vec2(-1, -1)), ClickEvent(0, vec2(-1, -1)),
-      vector<CursorData>(), vector<CursorData>(), null);
-}
 
 export struct EditorUIData {
   Buffer buffer;

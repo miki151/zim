@@ -130,9 +130,9 @@ int main(string[] args) {
   }
   mutable uiBounds = rectangle(vec2(0, 0), window.size());
   mutable programState = ProgramState(
-      move(paths),
-      Highlighter("/usr/share/source-highlight/", "zenon.lang"),
-      currentDir
+      .paths = move(paths),
+      .highlighter = Highlighter("/usr/share/source-highlight/", "zenon.lang"),
+      .basePath = currentDir
   );
   for (path : programState.paths) {
     programState.bufferOrder.push_back(path.index);

@@ -39,9 +39,9 @@ bool isContentUnsaved(ProgramState* programState) {
 
 template <T>
 struct SearchInfo {
-  string? entry;
-  vector<T> results;
-  vector<T> origResults;
+  string? entry = "";
+  vector<T> results = vector<T>();
+  vector<T> origResults = vector<T>();
 };
 
 template <T>
@@ -99,42 +99,22 @@ export union OverlayInfo {
 };
 
 export struct ProgramState {
-  UIRecord uiData;
-  UIState uiState;
-  int currentBuffer;
-  vector<EditorUIData> editorData;
-  vector<int> bufferOrder;
+  UIRecord uiData = UIRecord();
+  UIState uiState = UIState();
+  int currentBuffer = 0;
+  vector<EditorUIData> editorData = vector<EditorUIData>();
+  vector<int> bufferOrder = vector<int>();
   vector<string?> paths;
-  vector<string> searchHistory;
-  int? searchHistoryIndex;
-  OverlayInfo? overlayInfo;
-  SearchInfo<LocationResult>? previousLocationSearch;
-  vector<box<invoke<void>>> toDo;
+  vector<string> searchHistory = vector<string>();
+  int? searchHistoryIndex = null;
+  OverlayInfo? overlayInfo = null;
+  SearchInfo<LocationResult>? previousLocationSearch = null;
+  vector<box<invoke<void>>> toDo = vector<box<invoke<void>>>();
   Highlighter highlighter;
-  LspSignature? signature;
-  LspHoverResult? hover;
+  LspSignature? signature = null;
+  LspHoverResult? hover = null;
   string basePath;
 };
-
-export ProgramState(vector<string?> paths, Highlighter highlighter, string basePath) {
-  return ProgramState::ProgramState(
-    .uiData = UIRecord(),
-    .uiState = UIState(),
-    .currentBuffer = 0,
-    .editorData = vector<EditorUIData>(),
-    .bufferOrder = vector<int>(),
-    .paths = move(paths),
-    .searchHistory = vector<string>(),
-    .searchHistoryIndex = null,
-    .overlayInfo = null,
-    .previousLocationSearch = null,
-    .toDo = vector<box<invoke<void>>>(),
-    .highlighter = move(highlighter),
-    .signature = null,
-    .hover = null,
-    .basePath = basePath
-  );
-}
 
 void addCursorHistory(ProgramState mutable* programState) {
   const editorData = programState^.getEditorData();

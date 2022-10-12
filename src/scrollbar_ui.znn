@@ -9,12 +9,8 @@ struct ScrollbarUI {
 };
 
 struct ScrollbarUIState {
-  bool held;
+  bool held = false;
 };
-
-ScrollbarUIState() {
-  return ScrollbarUIState::ScrollbarUIState(false);
-}
 
 export void render(ScrollbarUI* ui, UIContext context, rectangle* r) {
   const data = **context.data^.cast_to<EditorUIData mutable*>();
