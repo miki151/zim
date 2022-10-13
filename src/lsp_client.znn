@@ -157,7 +157,7 @@ export LspMessage? getMessage(LspClient mutable* client) {
       printf("========\n");
       return null;
     }
-    printf("Message {j^.dump(2)}\n");
+    //printf("Message {j^.dump(2)}\n");
     if (j^.contains("result")) {
       const id = j^["id"].get<int>();
       if (client->constructors.contains(&id))
