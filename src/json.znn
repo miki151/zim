@@ -51,7 +51,7 @@ bool is(json* j) {
   static if (T == bool)
     embed_returns { return j->is_boolean(); }
   static if (T == string)
-    embed_returns { return j->is_string(); }  
+    embed_returns { return j->is_string(); }
 }
 
 export bool contains(json* j, string s) {

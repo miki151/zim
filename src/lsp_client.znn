@@ -36,6 +36,7 @@ export struct LspCompletionOption {
   string label;
   string text;
   int numErased;
+  int kind;
 };
 
 export LspCompletionOption copy(LspCompletionOption*) = default;
@@ -157,10 +158,10 @@ export LspMessage? getMessage(LspClient mutable* client) {
       printf("========\n");
       return null;
     }
-    //printf("Message {j^.dump(2)}\n");
+    printf("Message {j^.dump(2)}\n");
     if (j^.contains("result")) {
       const id = j^["id"].get<int>();
-      if (client->constructors.contains(&id))
+      if (client^.constructors.contains(&id))
         return client^.constructors.get(&id)^^(j^["result"].copy());
     }
     if (j^.contains("method") && j^["method"] == json("textDocument/publishDiagnostics")) {
@@ -300,10 +301,16 @@ export void sendCompletionRequest(LspClient mutable* client, string path, vec2 p
     mutable options = vector<LspCompletionOption>();
     for (elem : j["items"]) {
       const rangeInfo = elem^["textEdit"]["range"].copy();
+      mutable label = elem^["label"].get<string>();
+      if (elem^.contains("detail"))
+        label = elem^["detail"].get<string>() + label;
+      mutable text = elem^["textEdit"]["newText"].get<string>();
+      const kind = elem^["kind"].get<int>();
       options.push_back(LspCompletionOption(
-          elem^["label"].get<string>(),
-          elem^["textEdit"]["newText"].get<string>(),
-          rangeInfo["end"]["character"].get<int>() - rangeInfo["start"]["character"].get<int>()
+          move(label),
+          move(text),
+          rangeInfo["end"]["character"].get<int>() - rangeInfo["start"]["character"].get<int>(),
+          kind
       ));
     }
     return LspMessage::completionResult(LspCompletionResult(
@@ -344,7 +351,7 @@ export void initialize(LspClient mutable* client, string homeDir) {
       .set("capabilities", json_object()
           .set("textDocument", json_object()
               .set("completion", json_object()
-                  .set("snippetSupport", json(false))
+                  .set("snippetSupport", json(true))
               )
               .set("signatureHelp", json_object()
                   .set("signatureInformation", json_object()

@@ -26,17 +26,17 @@ export void render(ScrollingListUI* ui, mutable UIContext context, rectangle* r)
   const state = context.state^.get_state<ScrollingListUIState>();
   if (!data)
     context.canvas^.drawText(r^.v1, "scrolling list got {context.data^.get_type()}", 20, &color(255, 0, 0));
-  mutable start = r->v1.y;
+  mutable start = r^.v1.y;
   for (dataElem : data^^.elems)
     if (dataElem.index >= state^.scrollPos) {
       context.data = dataElem^.get();
-      const height = ui->elem->size(context).y;
-      const bounds = rectangle(vec2(r->v1.x, start), vec2(r->v2.x, start + height));
+      const height = ui^.elem^.size(context).y;
+      const bounds = rectangle(vec2(r^.v1.x, start), vec2(r^.v2.x, start + height));
       if (dataElem.index == state^.index)
         ui^.highlight^.render(context, &bounds);
-      ui->elem->render(context, &bounds);
+      ui^.elem^.render(context, &bounds);
       start += height;
-      if (start >= r->v2.y)
+      if (start >= r^.v2.y)
         break;
     }
 }
@@ -61,8 +61,8 @@ export bool onKeyEvent(ScrollingListUI* ui, mutable UIContext context, rectangle
   if (!data || data^^.elems.empty())
     return false;
   context.data = data^^.elems.front()^.get();
-  const elemHeight = ui->elem->size(context).y;
-  const numElems = r->height() / elemHeight;
+  const elemHeight = ui^.elem^.size(context).y;
+  const numElems = r^.height() / elemHeight;
   const covers = [](vector<key_event>* v, key_event* e) {
     for (elem : *v)
       if (elem^.covers(e))

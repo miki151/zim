@@ -14,20 +14,20 @@ import "scrolling_list_ui.znn";
 
 void setPrompt(ProgramState mutable* programState, string question, box<invoke<void>> callback_yes) {
   const uiData = &programState^.uiData;
-  uiData->insert("prompt_callback_yes", [move(callback_yes), uiData] {
+  uiData^.insert("prompt_callback_yes", [move(callback_yes), uiData] {
     callback_yes^();
-    uiData->erase(&"prompt_callback_yes");
-    uiData->erase(&"prompt_callback_no");
-    uiData->erase(&"prompt_text");
+    uiData^.erase(&"prompt_callback_yes");
+    uiData^.erase(&"prompt_callback_no");
+    uiData^.erase(&"prompt_text");
   }.box_as<UICallback>().box_as<any>());
-  uiData->insert("prompt_callback_no", [uiData, programState] {
+  uiData^.insert("prompt_callback_no", [uiData, programState] {
     programState^.toDo.push_back([uiData] {
-      uiData->erase(&"prompt_callback_yes");
-      uiData->erase(&"prompt_callback_no");
-      uiData->erase(&"prompt_text");
+      uiData^.erase(&"prompt_callback_yes");
+      uiData^.erase(&"prompt_callback_no");
+      uiData^.erase(&"prompt_text");
     }.box_as<invoke<void>>());
   }.box_as<UICallback>().box_as<any>());
-  uiData->insert("prompt_text", question.box_as<any>());
+  uiData^.insert("prompt_text", question.box_as<any>());
 }
 
 bool isContentUnsaved(ProgramState* programState) {
@@ -387,8 +387,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
         }
         if (*path) {
           if (const file = open_file_w(**path)) {
-            file->printf(elem->buffer.joinLines());
-            elem->buffer.origText = elem->buffer.text.copy();
+            file^.printf(elem^.buffer.joinLines());
+            elem^.buffer.origText = elem^.buffer.text.copy();
           }
           elem^.buffer.origLastModified = *get_modification_time(**path);
         }
@@ -628,7 +628,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
           if (const p = breakIntoPatternAndReplace(search))
             programState^.searchAndReplace(p^.first, p^.second);
           else {
-            programState^.getEditorState()->searchedText = SearchedTextInfo(search, false);
+            programState^.getEditorState()^.searchedText = SearchedTextInfo(search, false);
           }
           programState^.overlayInfo = null;
         }.box_as<UICallback>().box_as<any>());
@@ -675,7 +675,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
                   programState^.switchToBuffer(*programState^.paths.find(&path));
                 }
                 case (line) {
-                  programState^.getEditorState()->searchedPos = vec2(0, line - 1);
+                  programState^.getEditorState()^.searchedPos = vec2(0, line - 1);
                 }
               }
               programState^.overlayInfo = null;
@@ -709,7 +709,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
             programState^.toDo.push_back([programState, &location, index] {
               programState^.addCursorHistory();
               const result = &location.results[index];
-              programState^.switchToBuffer(result->bufferIndex);
+              programState^.switchToBuffer(result^.bufferIndex);
               programState^.getEditorData()^.selectionStart = null;
               programState^.getEditorState()^.searchedPos = vec2(0, result^.line - 1);
             }.box_as<invoke<void>>());
@@ -790,6 +790,10 @@ void applyCompletion(ProgramState mutable* programState, LspCompletionOption* re
   const data = programState^.getEditorData();
   data^.cursor = data^.buffer.erase(data^.cursor - vec2(result^.numErased + numEntered, 0), data^.cursor);
   data^.cursor = data^.buffer.onText(result^.text, data^.cursor);
+  if (result^.kind == 2 || result^.kind == 3 || result^.kind == 4) {
+    data^.cursor = data^.buffer.onText("()", data^.cursor);
+    --data^.cursor.x;
+  }
   programState^.overlayInfo = null;
 }
 
