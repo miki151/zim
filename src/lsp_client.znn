@@ -17,7 +17,7 @@ export embed {
 export extern struct LspClientBase;
 
 LspClientBase getLspClientBase(string command, vector<string> args, bool serverStderr) {
-  embed_returns {
+  embed {
     std::vector<std::string> argsCopy;
     for (auto& a : args)
       argsCopy.push_back(a.data());
@@ -119,7 +119,7 @@ void sendMessage(LspClient mutable* client, string message) {
 }
 
 string? readMessage(LspClient mutable* client) {
-  embed_returns {
+  embed {
     if (auto msg = client->client.readMessage())
       return zenon_string::owned(msg->data());
   }

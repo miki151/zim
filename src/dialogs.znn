@@ -8,7 +8,7 @@ embed {
 export import "std/vector.znn";
 
 export vector<string> getOpenFiles(string title) {
-  embed_returns {
+  embed {
     auto result = tinyfd_openFileDialog(title.data(), nullptr, 0, nullptr, nullptr, 1);
     if (!result)
       return {};

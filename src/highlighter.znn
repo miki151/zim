@@ -117,17 +117,17 @@ export Highlighter(string dir, string langFile) {
 }
 
 export vector<TokenInfo> getTokens(Highlighter* highlighter, HighlighterState mutable* state, string line) {
-  embed_returns {
+  embed {
     (*state)->highlightParagraph(line.data());
     return std::move(*highlighter->tokenBuffer);
   }
 }
 
 export string getContent(TokenInfo* info) {
-  embed_returns { return info->content; }
+  embed { return info->content; }
 }
 
 export TokenType getType(TokenInfo* info) {
-  embed_returns { return info->type; }
+  embed { return info->type; }
 }
 

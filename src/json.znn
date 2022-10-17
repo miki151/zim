@@ -10,21 +10,21 @@ using json_iterator = json::iterator;
 export extern struct json;
 
 export json(int i) {
-  embed_returns {
+  embed {
     json j = i;
     return j;
   }
 }
 
 export json(bool b) {
-  embed_returns {
+  embed {
     json j = b;
     return j;
   }
 }
 
 export json(string s) {
-  embed_returns {
+  embed {
     json j = s.data();
     return j;
   }
@@ -33,12 +33,12 @@ export json(string s) {
 export template<T> requires (T == int || T == string || T == bool)
 T get(json* j) {
   static if (T == string) {
-    embed_returns {
+    embed {
       std::string s = j->get<std::string>();
       return zenon_string::owned(s.data());
     }
   } else {
-    embed_returns {
+    embed {
       return j->get<T>();
     }
   }
@@ -47,33 +47,33 @@ T get(json* j) {
 export template<T> requires (T == int || T == string || T == bool)
 bool is(json* j) {
   static if (T == int)
-    embed_returns { return j->is_number(); }
+    embed { return j->is_number(); }
   static if (T == bool)
-    embed_returns { return j->is_boolean(); }
+    embed { return j->is_boolean(); }
   static if (T == string)
-    embed_returns { return j->is_string(); }
+    embed { return j->is_string(); }
 }
 
 export bool contains(json* j, string s) {
-  embed_returns {
+  embed {
     return j->contains(s.data());
   }
 }
 
 export json* operator [] (json* j, string s) {
-  embed_returns {
+  embed {
     return &(*j)[s.data()];
   }
 }
 
 export json* operator [] (json* j, int index) {
-  embed_returns {
+  embed {
     return &(*j)[index];
   }
 }
 
 export int size(json* j) {
-  embed_returns {
+  embed {
     return j->size();
   }
 }
@@ -83,19 +83,19 @@ export bool empty(json* j) {
 }
 
 export bool is_null(json* j) {
-  embed_returns {
+  embed {
     return *j == nullptr;
   }
 }
 
 export bool is_array(json* j) {
-  embed_returns {
+  embed {
     return j->is_array();
   }
 }
 
 export json mutable* operator [] (json mutable* j, string s) {
-  embed_returns {
+  embed {
     return &(*j)[s.data()];
   }
 }
@@ -112,19 +112,19 @@ export void set(json mutable* j, string key, json value) {
 export extern bool operator == (json*, json*);
 
 export json copy(json* j) {
-  embed_returns {
+  embed {
     return *j;
   }
 }
 
 export json json_object() {
-  embed_returns {
+  embed {
     return json::object();
   }
 }
 
 export json json_array() {
-  embed_returns {
+  embed {
     return json::array();
   }
 }
@@ -136,13 +136,13 @@ export void push_back(json mutable* array, json object) {
 }
 
 export string dump(json* j) {
-  embed_returns {
+  embed {
     return zenon_string::owned(j->dump().data());
   }
 }
 
 export string dump(json* j, int indent) {
-  embed_returns {
+  embed {
     return zenon_string::owned(j->dump(indent).data());
   }
 }
@@ -154,7 +154,7 @@ export json!string json_parse(string s) {
   const getError = [](string s) -> json!string {
     return move(s);
   };
-  embed_returns {
+  embed {
     try {
       return invoke(&getValue, json::parse(s.data()));
     } catch (nlohmann::detail::parse_error e) {
@@ -166,19 +166,19 @@ export json!string json_parse(string s) {
 export extern struct json_iterator;
 
 export json_iterator implicit_copy(json_iterator* it) {
-  embed_returns {
+  embed {
     return *it;
   }
 }
 
 export json_iterator begin(json mutable* s) {
-  embed_returns {
+  embed {
     return s->begin();
   }
 }
 
 export json_iterator end(json mutable* s) {
-  embed_returns {
+  embed {
     return s->end();
   }
 }
