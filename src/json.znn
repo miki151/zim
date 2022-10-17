@@ -58,10 +58,10 @@ export json* operator [] (json* j, string s) embed {
 
 export extern json* operator [] (json* j, int index);
 
-export [@method]
+export [@member]
 extern int size(json*);
 
-export [@method]
+export [@member]
 extern bool empty(json*);
 
 export [@member]
