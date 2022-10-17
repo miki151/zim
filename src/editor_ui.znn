@@ -68,10 +68,7 @@ export struct EditorUIData {
 };
 
 vec2 getVisibleCursor(EditorUIData* data, Buffer* buffer) {
-  mutable ret = data^.cursor;
-  ret.y = min(data^.buffer.text.size() - 1, ret.y);
-  ret.x = min(ret.x, data^.buffer.text[ret.y].size());
-  return move(ret);
+  return buffer^.trimCursor(data^.cursor);
 }
 
 void renderSelection(EditorUI* editor, UIContext context, rectangle* r, vec2 textSize) {

@@ -50,6 +50,12 @@ export bool isModified(Buffer* buffer) {
   return !buffer^.origLastModified || buffer^.text != buffer^.origText;
 }
 
+export vec2 trimCursor(Buffer* buffer, mutable vec2 cursor) {
+  cursor.y = min(buffer^.text.size() - 1, cursor.y);
+  cursor.x = min(cursor.x, buffer^.text[cursor.y].size());
+  return move(cursor);
+}
+
 export string joinLines(Buffer* buffer) {
   mutable ret = "";
   for (it : buffer^.text) {
