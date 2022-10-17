@@ -9,25 +9,19 @@ using json_iterator = json::iterator;
 
 export extern struct json;
 
-export json(int i) {
-  embed {
-    json j = i;
-    return j;
-  }
+export json(int i) embed {
+  json j = i;
+  return j;
 }
 
-export json(bool b) {
-  embed {
-    json j = b;
-    return j;
-  }
+export json(bool b) embed {
+  json j = b;
+  return j;
 }
 
-export json(string s) {
-  embed {
-    json j = s.data();
-    return j;
-  }
+export json(string s) embed {
+  json j = s.data();
+  return j;
 }
 
 export template<T> requires (T == int || T == string || T == bool)
@@ -54,50 +48,30 @@ bool is(json* j) {
     embed { return j->is_string(); }
 }
 
-export bool contains(json* j, string s) {
-  embed {
-    return j->contains(s.data());
-  }
+export bool contains(json* j, string s) embed {
+  return j->contains(s.data());
 }
 
-export json* operator [] (json* j, string s) {
-  embed {
-    return &(*j)[s.data()];
-  }
+export json* operator [] (json* j, string s) embed {
+  return &(*j)[s.data()];
 }
 
-export json* operator [] (json* j, int index) {
-  embed {
-    return &(*j)[index];
-  }
-}
+export extern json* operator [] (json* j, int index);
 
-export int size(json* j) {
-  embed {
-    return j->size();
-  }
-}
+export [@method]
+extern int size(json*);
 
-export bool empty(json* j) {
-  return j^.size() == 0;
-}
+export [@method]
+extern bool empty(json*);
 
-export bool is_null(json* j) {
-  embed {
-    return *j == nullptr;
-  }
-}
+export [@member]
+extern bool is_null(json*);
 
-export bool is_array(json* j) {
-  embed {
-    return j->is_array();
-  }
-}
+export [@member]
+extern bool is_array(json*);
 
-export json mutable* operator [] (json mutable* j, string s) {
-  embed {
-    return &(*j)[s.data()];
-  }
+export json mutable* operator [] (json mutable* j, string s) embed {
+  return &(*j)[s.data()];
 }
 
 export json set(mutable json j, string key, json value) {
@@ -111,40 +85,27 @@ export void set(json mutable* j, string key, json value) {
 
 export extern bool operator == (json*, json*);
 
-export json copy(json* j) {
-  embed {
-    return *j;
-  }
+export json copy(json* j) embed {
+  return *j;
 }
 
-export json json_object() {
-  embed {
-    return json::object();
-  }
+export json json_object() embed {
+  return json::object();
 }
 
-export json json_array() {
-  embed {
-    return json::array();
-  }
+export json json_array() embed {
+  return json::array();
 }
 
-export void push_back(json mutable* array, json object) {
-  embed {
-    array->push_back(std::move(object));
-  }
+export [@member]
+extern void push_back(json mutable* array, json);
+
+export string dump(json* j) embed {
+  return zenon_string::owned(j->dump().data());
 }
 
-export string dump(json* j) {
-  embed {
-    return zenon_string::owned(j->dump().data());
-  }
-}
-
-export string dump(json* j, int indent) {
-  embed {
-    return zenon_string::owned(j->dump(indent).data());
-  }
+export string dump(json* j, int indent) embed {
+  return zenon_string::owned(j->dump(indent).data());
 }
 
 export json!string json_parse(string s) {
@@ -165,23 +126,15 @@ export json!string json_parse(string s) {
 
 export extern struct json_iterator;
 
-export json_iterator implicit_copy(json_iterator* it) {
-  embed {
-    return *it;
-  }
+export json_iterator implicit_copy(json_iterator* it) embed {
+  return *it;
 }
 
-export json_iterator begin(json mutable* s) {
-  embed {
-    return s->begin();
-  }
-}
+export [@member]
+extern json_iterator begin(json mutable* s);
 
-export json_iterator end(json mutable* s) {
-  embed {
-    return s->end();
-  }
-}
+export [@member]
+extern json_iterator end(json mutable* s);
 
 export extern json* operator *(json_iterator* it);
 
