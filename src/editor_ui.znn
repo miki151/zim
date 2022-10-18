@@ -547,7 +547,7 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
         return false;
       const textSize = context.canvas^.getTextSize(" ", editor^.fontSize);
       const curTime = current_time_milli();
-      const clickPos = (event^.pos - r^.v1).pairwise_div(textSize) + data^.scrollPos;
+      const clickPos = (event^.pos - r^.v1 + vec2(textSize.x / 2, 0)).pairwise_div(textSize) + data^.scrollPos;
       state^.addCursorHistory(data^.cursor, data^.buffer.index);
       data^.cursor.y = min(data^.buffer.text.size() - 1, clickPos.y);
       data^.cursor.x = min(data^.buffer.text[data^.cursor.y].size(), clickPos.x);
