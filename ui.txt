@@ -37,6 +37,7 @@ End
           mouseWheelStep = 4
           bracketHighlightColor = 100 100 50
           trailingWhitespaceColor = 130 0 0
+          crColor = 90 90 0
           syntaxColors = {
             DEFAULT 255 255 255
             KEYWORD 255 255 0
