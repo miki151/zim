@@ -163,22 +163,25 @@ export string? getSelectedTextInLine(EditorUIData* data) {
   return null;
 }
 
-vec2? findMatchingBracket(Buffer* buffer, vec2 cursor, char bracket) {
-  mutable matching = ' ';
+char? getOtherBracket(char bracket) {
   if (bracket == '(')
-    matching = ')';
+    return ')';
   else if (bracket == '[')
-    matching = ']';
+    return ']';
   else if (bracket == '{')
-    matching = '}';
+    return '}';
   else if (bracket == ')')
-    matching = '(';
+    return '(';
   else if (bracket == ']')
-    matching = '[';
+    return '[';
   else if (bracket == '}')
-    matching = '{';
+    return '{';
   else
     return null;
+}
+
+vec2? findMatchingBracket(Buffer* buffer, vec2 cursor, char bracket) {
+  mutable matching = try getOtherBracket(bracket);
   mutable cursor2 = cursor;
   mutable cnt = 1;
   const dir = bracket == '(' || bracket == '[' || bracket == '{' ? 1 : -1;
@@ -194,7 +197,7 @@ vec2? findMatchingBracket(Buffer* buffer, vec2 cursor, char bracket) {
         break;
       cursor2.x = buffer^.text[cursor2.y].size() - 1;
     }
-    if (cursor2.y >= buffer^.text.size())
+    if (cursor2.y >= buffer^.text.size() || cursor2.x >= buffer^.text[cursor2.y].size())
       break;
     const symbol2 = buffer^.text[cursor2.y][cursor2.x];
     if (symbol2 == bracket)
@@ -207,11 +210,12 @@ vec2? findMatchingBracket(Buffer* buffer, vec2 cursor, char bracket) {
   return null;
 }
 
-void highlightBrackets(EditorUI* editor, EditorUIData* data, UICanvas* canvas, vec2 cursor, vec2 textSize,
+void highlightBrackets(EditorUI* editor, EditorUIData* data, UICanvas* canvas, mutable vec2 cursor, vec2 textSize,
     rectangle* r) {
-  const symbol = data^.buffer.text[cursor.y][cursor.x];
   mutable cursor1 = cursor;
-  mutable cursor2 = data^.buffer.findMatchingBracket(cursor, symbol);
+  mutable vec2? cursor2 = null;
+  if (cursor.x < data^.buffer.text[cursor.y].size())
+    cursor2 = data^.buffer.findMatchingBracket(cursor, data^.buffer.text[cursor.y][cursor.x]);
   if (!cursor2 && cursor.x > 0) {
     cursor1 = cursor - vec2(1, 0);
     cursor2 = data^.buffer.findMatchingBracket(cursor1, data^.buffer.text[cursor1.y][cursor1.x]);
