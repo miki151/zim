@@ -19,6 +19,7 @@ struct EditorUI {
   color bracketHighlightColor;
   color trailingWhitespaceColor;
   color crColor;
+  color tabColor;
   int mouseWheelStep;
   enum_map<TokenType, color> syntaxColors;
   enum_map<LspDiagnosticSeverity, color> errorColors;
@@ -277,7 +278,14 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
     const tokens = data^.highlighter^.getTokens(&highlighterState, *lineStr);
     mutable length = 0;
     for (token : tokens) {
-      const content = token^.getContent();
+      mutable content = "";
+      for (c : token^.getContent())
+        if (*c == '\t') {
+          const bgPos = pos + vec2((length + c.index) * textSize.x, 0);
+          context.canvas^.fillRectangle(&rectangle(bgPos, bgPos + textSize), &editor^.tabColor);
+          content += " ";
+        } else
+          content += *c;
       context.canvas^.drawText(pos + vec2(length * textSize.x, 0), content,
           editor^.fontSize, &editor^.syntaxColors[token^.getType()]);
       length += content.size();
