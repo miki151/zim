@@ -2,6 +2,7 @@
 export import "std/vector.znn";
 export import "ui/vec2.znn";
 import "std/math.znn";
+import "std/char.znn";
 import "util.znn";
 
 export struct HistoryElem {
@@ -66,21 +67,35 @@ export string joinLines(Buffer* buffer) {
   return move(ret);
 }
 
+export int ? currentIndentation(Buffer* buffer, vec2 cursor) {
+  for (x : range(0, cursor.x))
+    if (!buffer^.text[cursor.y][x].isspace())
+      return null;
+  if (cursor.y > 0) {
+    mutable int? ret = null;
+    if (const indent = indentSize(&buffer^.text[cursor.y - 1]))
+      ret = *indent;
+    if (const indent = indentSize(&buffer^.text[cursor.y]))
+      if (!ret || *indent > *ret)
+        ret = *indent;
+    return ret;
+  } else
+    return null;
+}
+
 export void changeIndent(Buffer mutable* buf, mutable vec2 start, mutable vec2 end, int amount) {
   buf^.onEdited(null);
   if (end.y < start.y)
     swap(&start, &end);
   if (end.y > start.y && end.x == 0)
     --end.y;
-  mutable tabs = "";
-  for (i : range(0, abs(amount)))
-    tabs += " ";
+  mutable tabs = getIndent(abs(amount));
   if (amount > 0) {
     for (i : range(start.y, end.y + 1))
       buf^.text[i] = tabs + buf^.text[i];
   } else
     for (i : range(start.y, end.y + 1))
-      if (buf^.text[i].substring(0, -amount) == tabs)
+      if (buf^.text[i].starts_with(&tabs))
         buf^.text[i] = buf^.text[i].substring(-amount, buf^.text[i].size() + amount);
 }
 

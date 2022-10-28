@@ -1,5 +1,7 @@
 
 export import "std/vector.znn";
+import "std/char.znn";
+import "std/math.znn";
 
 export vector<string> breakLines(string content) {
   mutable ret = {""}.as_vector();
@@ -11,3 +13,30 @@ export vector<string> breakLines(string content) {
   return move(ret);
 }
 
+export int? indentSize(string* line) {
+  mutable ret = 0;
+  for (c : *line)
+    if (c^.isspace())
+      ++ret;
+    else
+      return ret;
+  return null;
+}
+
+export string getIndent(int size) {
+  mutable ret = "";
+  for (i : range(0, size))
+    ret += " ";
+  return move(ret);
+}
+
+export vector<string> changeIndentation(vector<string> lines, int size) {
+  mutable minIndent = 10000;
+  for (line : lines)
+    minIndent = min(minIndent, indentSize(&*line) ?? 10000);
+  mutable ret = vector<string>();
+  mutable indent = getIndent(size);
+  for (line : lines)
+    ret.push_back(line^.empty() ? "" : indent + line^.substring(minIndent));
+  return move(ret);
+}

@@ -374,12 +374,8 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else
       if (lshift)
         data^.buffer.changeIndent(data^.cursor, data^.cursor, -editor^.tabWidth);
-      else {
-        mutable tabs = "";
-        for (i : range(0, abs(editor^.tabWidth)))
-          tabs += " ";
-        discard editor^.onTextEvent(context, r, tabs);
-      }
+      else
+        discard editor^.onTextEvent(context, r, getIndent(editor^.tabWidth));
     }
     case (LEFT) {
       if (lshift)
@@ -453,7 +449,9 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           data^.cursor = data^.buffer.erase(*data^.selectionStart, data^.getVisibleCursor(&data^.buffer));
           data^.selectionStart = null;
         }
-        const lines = breakLines(context.canvas^.getClipboard());
+        mutable lines = breakLines(context.canvas^.getClipboard());
+        if (const newIndent = data^.buffer.currentIndentation(data^.getVisibleCursor(&data^.buffer)))
+          lines = changeIndentation(lines.copy(), *newIndent);
         const oldCursor = data^.cursor;
         const textCopy = data^.buffer.text.copy();
         for (it : lines) {
