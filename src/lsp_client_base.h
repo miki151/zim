@@ -14,12 +14,17 @@
 class LspClientBase {
   public:
 
-  const std::string contentLength = "Content-Length: ";
+  std::string contentLength = "Content-Length: ";
 
-  void sendMessage(const std::string& message) {
+  bool sendMessage(const std::string& message) {
     auto header = contentLength + std::to_string(message.size()) + "\r\n\r\n";
-    write(pipeP2C[1], header.data(), header.size());
-    write(pipeP2C[1], message.data(), message.size());
+    if (write(pipeP2C[1], header.data(), header.size()) == -1 ||
+        write(pipeP2C[1], message.data(), message.size()) == -1) {
+      auto error = errno;
+      printf("LSP write error %d %s\n", error, strerror(error));
+      return false;
+    }
+    return true;
   }
 
   std::optional<std::string> readMessage() {
@@ -28,11 +33,13 @@ class LspClientBase {
     while (true) {
       char buf[100] = {0};
       int cnt = read(pipeC2P[0], buf, contentLength.size() + 10);
-      //if (cnt == -1) 
-      //  retur 
-        //std::cout << "Error " << strerror(errno) << std::endl;
-      if (cnt <= 0)
+      auto error = errno;
+      if (cnt == -1 && error != EAGAIN) {
+        printf("LSP read error %d %s\n", error, strerror(error));
         return std::nullopt;
+      }
+      if (cnt <= 0)
+        return std::string();
       bool done = false;
       for (int i = 0; i < cnt - 3; ++i)
         if (buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' && buf[i + 3] == '\n') {
@@ -60,6 +67,7 @@ class LspClientBase {
   }
 
   LspClientBase(std::string serverCommand, std::vector<std::string> args, bool serverStderr) {
+    signal(SIGPIPE, SIG_IGN);
     assert(pipe(pipeP2C) == 0);
     assert(pipe2(pipeC2P, O_NONBLOCK) == 0);
     int pid = fork();
@@ -90,16 +98,6 @@ class LspClientBase {
       assert(false);
     }
   }
-
-  /*~LspClientBase() {
-    std::vector<std::string> text = {
-      "{\"jsonrpc\":\"2.0\",\"method\":\"shutdown\",\"id\":2}",
-      "{\"jsonrpc\":\"2.0\",\"method\":\"exit\"}"
-    };
-    sendMessage(text[0]);
-    while (!readMessage()) {}
-    sendMessage(text[1]);
-  }*/
 
   private:
 

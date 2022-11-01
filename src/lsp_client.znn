@@ -16,10 +16,10 @@ export embed {
 
 export extern struct LspClientBase;
 
-LspClientBase getLspClientBase(string command, vector<string> args, bool serverStderr) {
+LspClientBase getLspClientBase(string command, vector<string>* args, bool serverStderr) {
   embed {
     std::vector<std::string> argsCopy;
-    for (auto& a : args)
+    for (auto& a : *args)
       argsCopy.push_back(a.data());
     return LspClientBase(command.data(), argsCopy, serverStderr);
   }
@@ -94,34 +94,40 @@ export union LspMessage {
 
 export struct LspClient {
   LspClientBase client;
-  hash_map<int, box<invoke<LspMessage?, json>>> constructors;
+  hash_map<int, box<invoke<LspMessage?, LspClient mutable*, json>>> constructors;
   int resultId;
   hash_map<string, int> documentVersions;
-  LspMessage? lspMessage;
   hash_set<string> capabilities;
+  bool restart;
 };
 
-export LspClient(string command, vector<string> args, bool serverStderr) {
+using ResponseConstructor = invoke<LspMessage?, LspClient mutable*, json>;
+
+export LspClient(string command, vector<string>* args, bool serverStderr) {
   return LspClient::LspClient(
-      getLspClientBase(move(command), move(args), serverStderr),
-      hash_map<int, box<invoke<LspMessage?, json>>>(),
-      0,
-      hash_map<string, int>(),
-      null,
-      hash_set<string>()
+      .client = getLspClientBase(move(command), move(args), serverStderr),
+      .constructors = hash_map<int, box<invoke<LspMessage?, LspClient mutable*, json>>>(),
+      .resultId = 0,
+      .documentVersions = hash_map<string, int>(),
+      .capabilities = hash_set<string>(),
+      .restart = false
   );
 }
 
 void sendMessage(LspClient mutable* client, string message) {
   embed {
-    client->client.sendMessage(message.data());
+    if (!client->client.sendMessage(message.data()))
+      client->restart = true;
   }
 }
 
 string? readMessage(LspClient mutable* client) {
   embed {
-    if (auto msg = client->client.readMessage())
-      return zenon_string::owned(msg->data());
+    if (auto msg = client->client.readMessage()) {
+      if (!msg->empty())
+        return zenon_string::owned(msg->data());
+    } else
+      client->restart = true;
   }
   return null;
 }
@@ -150,35 +156,34 @@ string uriToPath(string uri) {
 }
 
 export LspMessage? getMessage(LspClient mutable* client) {
-  if (const msg = client^.readMessage()) {
-    mutable j = json_parse(*msg);
-    if (!j) {
-      printf("Parsing error {j.error}\n");
-      printf("{*msg}\n");
-      printf("========\n");
-      return null;
+  const msg = try client^.readMessage();
+  mutable j = json_parse(msg);
+  if (!j) {
+    printf("Parsing error {j.error}\n");
+    printf("{msg}\n");
+    printf("========\n");
+    return null;
+  }
+  printf("Message {j^.dump(2)}\n");
+  if (j^.contains("result")) {
+    const id = j^["id"].get<int>();
+    if (client^.constructors.contains(&id))
+      return client^.constructors.get(&id)^^(client, j^["result"].copy());
+  }
+  if (j^.contains("method") && j^["method"] == json("textDocument/publishDiagnostics")) {
+    mutable ret = vector<LspDiagnosticLocation>();
+    const file = uriToPath(j^["params"]["uri"].get<string>());
+    for (elem : j^["params"]["diagnostics"]) {
+      ret.push_back(LspDiagnosticLocation(
+        vec2(elem^["range"]["start"]["character"].get<int>(),
+            elem^["range"]["start"]["line"].get<int>()),
+        vec2(elem^["range"]["end"]["character"].get<int>(),
+            elem^["range"]["end"]["line"].get<int>()),
+        elem^["message"].get<string>(),
+        fromInt<LspDiagnosticSeverity>(elem^["severity"].get<int>() - 1)
+      ));
     }
-    printf("Message {j^.dump(2)}\n");
-    if (j^.contains("result")) {
-      const id = j^["id"].get<int>();
-      if (client^.constructors.contains(&id))
-        return client^.constructors.get(&id)^^(j^["result"].copy());
-    }
-    if (j^.contains("method") && j^["method"] == json("textDocument/publishDiagnostics")) {
-      mutable ret = vector<LspDiagnosticLocation>();
-      const file = uriToPath(j^["params"]["uri"].get<string>());
-      for (elem : j^["params"]["diagnostics"]) {
-        ret.push_back(LspDiagnosticLocation(
-          vec2(elem^["range"]["start"]["character"].get<int>(),
-              elem^["range"]["start"]["line"].get<int>()),
-          vec2(elem^["range"]["end"]["character"].get<int>(),
-              elem^["range"]["end"]["line"].get<int>()),
-          elem^["message"].get<string>(),
-          fromInt<LspDiagnosticSeverity>(elem^["severity"].get<int>() - 1)
-        ));
-      }
-      return LspMessage::diagnostic(LspDiagnostic(file, move(ret)));
-    }
+    return LspMessage::diagnostic(LspDiagnostic(file, move(ret)));
   }
   return null;
 }
@@ -208,7 +213,7 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
   const j = getMethod("textDocument/definition", client^.resultId, json_object()
       .set("textDocument", getUri(path))
       .set("position", getPosition(position)));
-  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
+  client^.constructors.insert(client^.resultId, [](LspClient mutable*, mutable json j) -> LspMessage? {
     if (!j.is_array()) {
       mutable ar = json_array();
       ar.push_back(j.copy());
@@ -223,7 +228,7 @@ export void sendDefinitionRequest(LspClient mutable* client, string path, vec2 p
       ));
     }
     return LspMessage::referencesResult(move(ret));
-  }.box_as<invoke<LspMessage?, json>>());
+  }.box_as<ResponseConstructor>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }
@@ -234,7 +239,7 @@ export bool sendHoverRequest(LspClient mutable* client, string path, vec2 positi
   const j = getMethod("textDocument/hover", client^.resultId, json_object()
       .set("textDocument", getUri(path))
       .set("position", getPosition(position)));
-  client^.constructors.insert(client^.resultId, [path, position](mutable json j) -> LspMessage? {
+  client^.constructors.insert(client^.resultId, [path, position](LspClient mutable* client, mutable json j) -> LspMessage? {
     mutable startPos = position;
     mutable endPos = position;
     mutable content = vector<string>();
@@ -250,7 +255,7 @@ export bool sendHoverRequest(LspClient mutable* client, string path, vec2 positi
       startPos,
       endPos
     ));
-  }.box_as<invoke<LspMessage?, json>>());
+  }.box_as<ResponseConstructor>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
   return true;
@@ -262,12 +267,12 @@ export bool sendSignatureRequest(LspClient mutable* client, string path, vec2 po
   const j = getMethod("textDocument/signatureHelp", client^.resultId, json_object()
       .set("textDocument", getUri(path))
       .set("position", getPosition(position)));
-  client^.constructors.insert(client^.resultId, [path, position](mutable json j) -> LspMessage? {
+  client^.constructors.insert(client^.resultId, [path, position](LspClient mutable* client, mutable json j) -> LspMessage? {
     mutable labels = vector<string>();
     for (elem : j["signatures"])
       labels.push_back(elem^["label"].get<string>());
     return LspMessage::signature(LspSignature(path, position, move(labels)));
-  }.box_as<invoke<LspMessage?, json>>());
+  }.box_as<ResponseConstructor>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
   return true;
@@ -278,7 +283,7 @@ export void sendReferencesRequest(LspClient mutable* client, string path, vec2 p
       .set("textDocument", getUri(path))
       .set("position", getPosition(position))
       .set("context", json_object().set("includeDeclaration", json(true))));
-  client^.constructors.insert(client^.resultId, [](mutable json j) -> LspMessage? {
+  client^.constructors.insert(client^.resultId, [](LspClient mutable* client, mutable json j) -> LspMessage? {
     mutable ret = vector<LspDefinitionResult>();
     for (elem : j) {
       ret.push_back(LspDefinitionResult(
@@ -288,7 +293,7 @@ export void sendReferencesRequest(LspClient mutable* client, string path, vec2 p
       ));
     }
     return LspMessage::referencesResult(move(ret));
-  }.box_as<invoke<LspMessage?, json>>());
+  }.box_as<ResponseConstructor>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }
@@ -297,7 +302,7 @@ export void sendCompletionRequest(LspClient mutable* client, string path, vec2 p
   const j = getMethod("textDocument/completion", client^.resultId, json_object()
       .set("textDocument", getUri(path))
       .set("position", getPosition(position)));
-  client^.constructors.insert(client^.resultId, [position](mutable json j) -> LspMessage? {
+  client^.constructors.insert(client^.resultId, [position](LspClient mutable* client, mutable json j) -> LspMessage? {
     mutable options = vector<LspCompletionOption>();
     for (elem : j["items"]) {
       const rangeInfo = elem^["textEdit"]["range"].copy();
@@ -317,7 +322,7 @@ export void sendCompletionRequest(LspClient mutable* client, string path, vec2 p
       position,
       move(options)
     ));
-  }.box_as<invoke<LspMessage?, json>>());
+  }.box_as<ResponseConstructor>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }
@@ -372,7 +377,7 @@ export void initialize(LspClient mutable* client, string homeDir) {
       .set("rootUri", json("file://" + homeDir))
       .set("trace", json("off"))
   );
-  client^.constructors.insert(0, [client](mutable json j) -> LspMessage? {
+  client^.constructors.insert(0, [](LspClient mutable* client, mutable json j) -> LspMessage? {
     j = j["capabilities"].copy();
     const check = [&](string name) {
       if (j.contains(name) && (!j[name].is<bool>() || !!j[name].get<bool>()))
@@ -381,7 +386,7 @@ export void initialize(LspClient mutable* client, string homeDir) {
     check("signatureHelpProvider");
     check("hoverProvider");
     return null;
-  }.box_as<invoke<LspMessage?, json>>());
+  }.box_as<ResponseConstructor>());
   client^.sendMessage(j.dump());
   ++client^.resultId;
 }

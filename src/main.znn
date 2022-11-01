@@ -95,14 +95,24 @@ bool updateOutOfDateContent(SDLWindow* window, ProgramState mutable* programStat
 }
 
 LspClientMap getLspClients(Flags* flags, string currentDir) {
-  mutable lspClientMap = LspClientMap();
+  mutable lspClientMap = LspClientMap(
+      .homeDir = currentDir,
+  );
   if (!flags^.noLsp) {
-    lspClientMap.addClient({"cpp", "h"}.slice(),
-        LspClient("clangd", {"--background-index"}.as_vector(), flags^.lspStderr));
-    lspClientMap.addClient({"znn"}.slice(),
-        LspClient("/home/michal/zenon/zenon", {"--lsp"}.as_vector(), flags^.lspStderr));
-    for (client : lspClientMap.clients)
-      client^.initialize(currentDir);
+    lspClientMap.addClient(
+        LspClientInfo(
+            .path = "clangd",
+            .extensions = {"cpp", "h"}.as_vector(),
+            .flags = {"--background-index"}.as_vector(),
+            .serverStderr = flags^.lspStderr
+        ));
+    lspClientMap.addClient(
+        LspClientInfo(
+            .path = "/home/michal/zenon/zenon",
+            .extensions = {"znn"}.as_vector(),
+            .flags = {"--lsp"}.as_vector(),
+            .serverStderr = flags^.lspStderr
+        ));
   }
   return move(lspClientMap);
 }
@@ -167,6 +177,12 @@ int main(string[] args) {
   mutable lastOtherContentRequest = current_time_milli();
   while (!exit) {
     const curTime = current_time_milli();
+    for (client : lspClientMap.restartClients()) {
+      discard window.sdl_prompt("LSP server crashed.", "LSP server {*client} has crashed and will be restarted in 10 seconds.");
+      for (path : programState.paths)
+        if (!!*path && !lspClientMap.getClient(**path))
+          programState.editorData[path.index].buffer.lspUpdated = false;
+    }
     programState.handleLspMessages(&lspClientMap);
     if (curTime > lastContentCheck + 500) {
       lastContentCheck = curTime;

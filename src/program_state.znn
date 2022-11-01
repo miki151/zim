@@ -200,8 +200,8 @@ export bool updateCurrentLspContent(ProgramState mutable* programState, LspClien
 }
 
 export void handleLspMessages(ProgramState mutable* programState, LspClientMap mutable* lspClientMap) {
-  for (lspClient : lspClientMap^.clients)
-    if (const msg = lspClient^.getMessage())
+  for (lspClient : lspClientMap^.getActiveClients())
+    if (const msg = lspClient^^.getMessage())
       switch (*msg) {
         case (diagnostic) {
           if (const data = programState^.getEditorData(diagnostic.file))

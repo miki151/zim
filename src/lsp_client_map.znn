@@ -1,21 +1,41 @@
 
 export import "std/vector.znn";
-export import "lsp_client.znn";
 export import "std/hash_map.znn";
+export import "std/time.znn";
 
-export struct LspClientMap {
-  vector<LspClient> clients;
-  hash_map<string, int> extensions;
+export import "lsp_client.znn";
+
+export struct LspClientInfo {
+  string path;
+  vector<string> extensions;
+  vector<string> flags;
+  bool serverStderr;
+  LspClient client;
+  milliseconds_t? lastFailure = null;
 };
 
-export LspClientMap() {
-  return LspClientMap::LspClientMap(vector<LspClient>(), hash_map<string, int>());
+export LspClientInfo(string path, vector<string> extensions, vector<string> flags, bool serverStderr) {
+  const client = LspClient(path, &flags, serverStderr);
+  return LspClientInfo::LspClientInfo(
+      .path = move(path),
+      .extensions = move(extensions),
+      .flags = move(flags),
+      .serverStderr = serverStderr,
+      .client = move(client)
+  );
 }
 
-export void addClient(LspClientMap mutable* m, string[] extensions, LspClient client) {
-  m^.clients.push_back(move(client));
-  for (e : extensions)
-    m^.extensions.insert(*e, m^.clients.size() - 1);
+export struct LspClientMap {
+  vector<LspClientInfo> clients = vector<LspClientInfo>();
+  hash_map<string, int> extensions = hash_map<string, int>();
+  string homeDir;
+};
+
+export void addClient(LspClientMap mutable* m, mutable LspClientInfo info) {
+  info.client.initialize(m^.homeDir);
+  for (e : info.extensions)
+    m^.extensions.insert(*e, m^.clients.size());
+  m^.clients.push_back(move(info));
 }
 
 string getExtension(string path) {
@@ -25,8 +45,35 @@ string getExtension(string path) {
   return path;
 }
 
+export vector<string> restartClients(LspClientMap mutable* m) {
+  mutable ret = vector<string>();
+  const currentTime = current_time_milli();
+  for (client : m^.clients)
+    if (client^.client.restart) {
+      if (!client^.lastFailure) {
+        ret.push_back(client^.path);
+        client^.lastFailure = currentTime;
+      } else
+      if (currentTime - *client^.lastFailure > 10000) {
+        // restarting the client
+        client^.client = LspClient(client^.path, &client^.flags, client^.serverStderr);
+        client^.client.initialize(m^.homeDir);
+      }
+    }
+  return move(ret);
+}
+
 export LspClient mutable*? getClient(LspClientMap mutable* m, string path) {
   if (const ind = m^.extensions.get_maybe(&getExtension(path)))
-    return &m^.clients[**ind];
+    if (const info = &m^.clients[**ind]; !info^.client.restart)
+      return &info^.client;
   return null;
+}
+
+export vector<LspClient mutable*> getActiveClients(LspClientMap mutable* m) {
+  mutable ret = vector<LspClient mutable*>();
+  for (client : m^.clients)
+    if (!client^.client.restart)
+      ret.push_back(&client^.client);
+  return move(ret);
 }
