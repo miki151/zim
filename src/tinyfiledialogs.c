@@ -7748,3 +7748,5 @@ tinyfd_messageBox("The selected hexcolor is",
 #pragma warning(default:4100)
 #pragma warning(default:4706)
 #endif
+
+#undef SLASH

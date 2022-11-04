@@ -465,6 +465,55 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       } else
         return false;
     }
+    case (SLASH) {
+      if (lctrl && !!data^.selectionStart) {
+        data^.cursor = data^.getVisibleCursor(&data^.buffer);
+        mutable p1 = data^.cursor;
+        mutable p2 = *data^.selectionStart;
+        mutable endPtr = &*data^.selectionStart;
+        if (p1.y > p2.y || (p1.y == p2.y && p1.x > p2.x)) {
+          swap(&p1, &p2);
+          endPtr = &data^.cursor;
+        }
+        discard data^.buffer.onText("*/", p2);
+        discard data^.buffer.onText("/*", p1);
+        *endPtr = p2 + vec2(p2.y == p1.y ? 4 : 2, 0);
+      } else
+      if (lctrl && !data^.selectionStart) {
+        data^.cursor = data^.getVisibleCursor(&data^.buffer);
+        mutable p1 = data^.cursor;
+        mutable p2 = p1;
+        if (p1.y > p2.y || (p1.y == p2.y && p1.x > p2.x))
+          swap(&p1, &p2);
+        const matches = [&] (vec2 pos, string text) {
+          const res = data^.buffer.text[pos.y].substring(pos.x, text.size()) == text;
+          return res;
+        };
+        while (!matches(p1, "/*")) {
+          --p1.x;
+          if (p1.x < 0) {
+            --p1.y;
+            p1.x = data^.buffer.text[p1.y].size() - 2;
+          }
+          if (p1.y <= 0 || matches(p1, "*/"))
+            break;
+        }
+        while (!matches(p2, "*/")) {
+          ++p2.x;
+          if (p2.x > data^.buffer.text[p2.y].size() - 2) {
+            ++p2.y;
+            p2.x = 0;
+          }
+          if (p2.y >= data^.buffer.text.size() || matches(p2, "/*"))
+            break;
+        }
+        if (matches(p1, "/*") && matches(p2, "*/")) {
+          discard data^.buffer.erase(p2, p2 + vec2(2, 0));
+          discard data^.buffer.erase(p1, p1 + vec2(2, 0));
+        }
+      } else
+        return false;
+    }
     case (Z) {
       if (lctrl) {
         if (const pos = data^.buffer.undo(data^.getVisibleCursor(&data^.buffer)))
