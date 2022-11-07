@@ -475,8 +475,10 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           swap(&p1, &p2);
           endPtr = &data^.cursor;
         }
-        discard data^.buffer.onText("*/", p2);
-        discard data^.buffer.onText("/*", p1);
+        data^.buffer.onEdited(null);
+        data^.buffer.addHistory(data^.cursor, data^.cursor);
+        discard data^.buffer.onTextNoHistory("*/", p2);
+        discard data^.buffer.onTextNoHistory("/*", p1);
         *endPtr = p2 + vec2(p2.y == p1.y ? 4 : 2, 0);
       } else
       if (lctrl && !data^.selectionStart) {
@@ -507,9 +509,17 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           if (p2.y >= data^.buffer.text.size() || matches(p2, "/*"))
             break;
         }
+        data^.buffer.onEdited(null);
+        data^.buffer.addHistory(data^.cursor, data^.cursor);
         if (matches(p1, "/*") && matches(p2, "*/")) {
-          discard data^.buffer.erase(p2, p2 + vec2(2, 0));
-          discard data^.buffer.erase(p1, p1 + vec2(2, 0));
+          discard data^.buffer.eraseNoHistory(p2, p2 + vec2(2, 0));
+          discard data^.buffer.eraseNoHistory(p1, p1 + vec2(2, 0));
+        } else if (data^.buffer.text[data^.cursor.y].starts_with(&"//")) {
+          data^.buffer.text[data^.cursor.y] = data^.buffer.text[data^.cursor.y].substring(2);
+          data^.cursor.x -= 2;
+        } else {
+          data^.buffer.text[data^.cursor.y] = "//" + data^.buffer.text[data^.cursor.y];
+          data^.cursor.x += 2;
         }
       } else
         return false;

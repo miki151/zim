@@ -130,6 +130,10 @@ export vec2 erase(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPo
   if ((startPos.y == endPos.y && startPos.x > endPos.x) || startPos.y > endPos.y)
     swap(&startPos, &endPos);
   buf^.addHistory(endPos, startPos);
+  return buf^.eraseNoHistory(startPos, endPos);
+}
+
+export vec2 eraseNoHistory(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPos) {
   buf^.text[startPos.y] = buf^.text[startPos.y].substring(0, startPos.x) +
       buf^.text[endPos.y].substring(endPos.x, buf^.text[endPos.y].size() - endPos.x);
   for (i : range(0, endPos.y - startPos.y))
