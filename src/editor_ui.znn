@@ -631,7 +631,8 @@ export bool onMouseEvent(EditorUI* editor, UIContext context, rectangle* r, mous
       } else
       if (clickPos == data^.cursor && curTime - state^.lastLeftClick.time < 500 &&
           clickPos == state^.lastLeftClick.cursor) {
-        const status = isalnum(data^.buffer.text[data^.cursor.y][data^.cursor.x]);
+        const clickX = min(data^.cursor.x, data^.buffer.text[data^.cursor.y].size() - 1);
+        const status = isalnum(data^.buffer.text[data^.cursor.y][clickX]);
         mutable start = data^.cursor;
         while (start.x > 0 && isalnum(data^.buffer.text[start.y][start.x - 1]) == status)
           --start.x;
