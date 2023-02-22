@@ -175,8 +175,11 @@ int main(string[] args) {
   mutable lastContentCheck = current_time_milli();
   mutable lastLspRequest = current_time_milli();
   mutable lastOtherContentRequest = current_time_milli();
+  mutable milliseconds_t? lastUnfocused = null;
   while (!exit) {
     const curTime = current_time_milli();
+    if (!window.isFocused())
+      lastUnfocused = curTime;
     for (client : lspClientMap.restartClients()) {
       discard window.sdl_prompt("LSP server crashed.", "LSP server {*client} has crashed and will be restarted in 10 seconds.");
       for (path : programState.paths)
@@ -210,7 +213,9 @@ int main(string[] args) {
         }
         case (quit) { return 0; }
         case (key) {
-          discard ui^.onKeyEvent(context, &uiBounds, &key);
+          // work around the bogus tab event on alt+tab bug in sdl
+          if (key.key != key_type::TAB || !lastUnfocused || curTime > *lastUnfocused + 500)
+            discard ui^.onKeyEvent(context, &uiBounds, &key);
         }
         case (mouse) {
           discard ui^.onMouseEvent(context, &uiBounds, &mouse);
