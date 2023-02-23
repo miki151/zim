@@ -19,7 +19,7 @@ End
     height 20 {
       fill(UnsavedColor)
       using "no_changes" fill(SavedColor)
-      position(CENTER, using "buffer_name" text(16, 255 255 255))
+      position(CENTER, using "buffer_name" label(16, 255 255 255))
     }
     stretch { horizontal {
       width 0 {
@@ -66,12 +66,12 @@ End
     using "signatures" position(TOP_LEFT, margins(5, {
       fill(0 0 0)
       frame(1, 255 255 255)
-      margins(5, list text(FontSize, 255 255 255))
+      margins(5, list label(FontSize, 255 255 255))
     }))
     using "hoverText" position(TOP_RIGHT, margins(7, {
       fill(0 0 0)
       frame(1, 255 255 255)
-      margins(5, list max_width 400 text(FontSize, 255 255 255))
+      margins(5, list max_width 400 label(FontSize, 255 255 255))
     }))
     }
     using "location_results" position(BOTTOM_STRETCHED, max_height 472 {
@@ -79,11 +79,11 @@ End
       frame(1, 255 255 255)
       margins(1, NormalScrollingList(
         vertical {
-          using "text" text(20, 255 255 255)
+          using "text" label(20, 255 255 255)
           horizontal {
-            using "path" text(15, 200 200 200)
-            label(" : ", 15, 200 200 200)
-            using "line" text(15, 200 200 200)
+            using "path" label(15, 200 200 200)
+            label(15, 200 200 200, " : ")
+            using "line" label(15, 200 200 200)
           }
         }
       ))
@@ -91,13 +91,13 @@ End
     using "file_results" position(BOTTOM_STRETCHED, max_height 544 {
       fill(0 0 0)
       frame(1, 255 255 255)
-      margins(1, NormalScrollingList(using "text" text(20, 255 255 255)))
+      margins(1, NormalScrollingList(using "text" label(20, 255 255 255)))
     })
     using "completion_results" position(BOTTOM_STRETCHED, max_height 544 {
       fill(0 0 0)
       frame(1, 255 255 255)
       margins(1, NormalScrollingList(
-        using "text" text(20, 255 255 255)
+        using "text" label(20, 255 255 255)
       ))
     })
   }
@@ -107,9 +107,9 @@ End
     frame(1, 255 255 255)
     position(CENTER,
     vertical {
-      position(CENTER, text(20, 255 255 255))
+      position(CENTER, label(20, 255 255 255))
       height 5 {}
-      position(CENTER, label("Y/N", 20, 255 255 255))
+      position(CENTER, label(20, 255 255 255, "Y/N"))
     })
   })
   using "switch_buffer_callback" key_handler(TAB DOWN {LCTRL} )
@@ -117,9 +117,9 @@ End
     fill(0 0 0)
     frame(1, 255 255 255)
     margins(5, scrolling_list({LCTRL UP {}}, {DOWN DOWN {LCTRL} TAB DOWN {LCTRL}}, {UP DOWN {LCTRL}}, fill(UnsavedColor), {
-      using "text" horizontal { width 5 {} text(20, 255 255 255) width 35 {} }
-      if "errors" position(RIGHT_CENTER, horizontal { label("✗", 20, 255 0 0) width 5 {}})
-      if "updated" position(RIGHT_CENTER, horizontal { label("✓", 20, 0 255 0) width 5 {}}  )
+      using "text" horizontal { width 5 {} label(20, 255 255 255) width 35 {} }
+      if "errors" position(RIGHT_CENTER, horizontal { label(20, 255 0 0, "✗") width 5 {}})
+      if "updated" position(RIGHT_CENTER, horizontal { label(20, 0 255 0, "✓") width 5 {}}  )
     }))
   })
   using "search_content" position(BOTTOM_RIGHT, {
@@ -127,7 +127,7 @@ End
     frame(1, 255 255 255)
     margins(10, min_width 350 {
       fill(0 0 0)
-      margins(2, horizontal { text(20, 255 255 255) width 1 frame(1, 255 255 255)})
+      margins(2, horizontal { label(20, 255 255 255) width 1 frame(1, 255 255 255)})
     })
   })
   using "search_entry" text_handler()
