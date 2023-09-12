@@ -180,7 +180,7 @@ export LspMessage? getMessage(LspClient mutable* client) {
         vec2(elem^["range"]["end"]["character"].get<int>(),
             elem^["range"]["end"]["line"].get<int>()),
         elem^["message"].get<string>(),
-        fromInt<LspDiagnosticSeverity>(elem^["severity"].get<int>() - 1)
+        from_int<LspDiagnosticSeverity>(elem^["severity"].get<int>() - 1)
       ));
     }
     return LspMessage::diagnostic(LspDiagnostic(file, move(ret)));
