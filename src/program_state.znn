@@ -37,7 +37,7 @@ bool isContentUnsaved(ProgramState* programState) {
   return false;
 }
 
-template <T>
+export template <T>
 struct SearchInfo {
   string? entry = "";
   vector<T> results = vector<T>();
@@ -75,14 +75,14 @@ void handleTextEntry(SearchInfo<T> mutable* info, TextCallbackParam param) {
       }
     }
 }
-union FileSearchResult {
+export union FileSearchResult {
   string path;
   int line;
 };
 
 FileSearchResult copy(FileSearchResult*) = default;
 
-struct LocationResult {
+export struct LocationResult {
   string text;
   int line;
   int bufferIndex;
@@ -488,11 +488,14 @@ void doLocationSearch(ProgramState mutable* programState, string text) {
   mutable locationResults = vector<LocationResult>();
   if (text.size() > 1)
     for (elem : programState^.editorData) {
-      for (line : elem^.buffer.text)
-        if (!!line^.find(&text)) {
+      if (!elem^.buffer.bigramMap)
+        elem^.buffer.bigramMap = BigramMap(&elem^.buffer.text);
+      if (const positions = elem^.buffer.bigramMap^.elems.get_maybe(&text.prefix(2)))
+      for (pos : **positions)
+        if (elem^.buffer.text[pos^.y].contains(pos^.x, &text)) {
           locationResults.push_back(LocationResult(
-            .text = *line,
-            .line = line.index + 1,
+            .text = elem^.buffer.text[pos^.y],
+            .line = pos^.y + 1,
             .bufferIndex = elem.index
           ));
           if (locationResults.size() > 100)

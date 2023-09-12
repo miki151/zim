@@ -1,9 +1,13 @@
 
 export import "std/vector.znn";
 export import "ui/vec2.znn";
+export import "std/hash_map.znn";
 import "std/math.znn";
 import "std/char.znn";
+import "std/io.znn";
+
 import "util.znn";
+
 
 export struct HistoryElem {
   vector<string> text;
@@ -21,9 +25,22 @@ export struct LastEditInfo {
   vec2 cursor;
 };
 
+export struct BigramMap {
+  hash_map<string, vector<vec2>> elems;
+};
+
+export BigramMap (vector<string>* content) {
+  mutable ret = BigramMap::BigramMap(hash_map<string, vector<vec2>>());
+  for (line : *content)
+    for (i : range(0, line^.size() - 1))
+      ret.elems.get_or_init(&"{line^[i]}{line^[i + 1]}", vector<vec2>())^.push_back(vec2(i, line.index));
+  return move(ret);
+}
+
 export struct Buffer {
   int index;
   vector<string> text;
+  BigramMap? bigramMap;
   vector<string> origText;
   milliseconds_t? origLastModified;
   vector<HistoryElem> history = vector<HistoryElem>();
@@ -35,6 +52,7 @@ export struct Buffer {
 export void onEdited(Buffer mutable* buffer, LastEditInfo? info) {
   buffer^.lspUpdated = false;
   buffer^.lastEdit = move(info);
+  buffer^.bigramMap = null;
 }
 
 export Buffer(int index, milliseconds_t? origLastModified, string content) {
@@ -42,6 +60,7 @@ export Buffer(int index, milliseconds_t? origLastModified, string content) {
   return Buffer::Buffer(
       .index = index,
       .text = lines.copy(),
+      .bigramMap = BigramMap(&lines),
       .origText = lines.copy(),
       .origLastModified = origLastModified
   );
