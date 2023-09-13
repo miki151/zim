@@ -57,6 +57,7 @@ export json* operator [] (json* j, string s) embed {
 }
 
 export extern json* operator [] (json* j, int index);
+export extern json mutable* operator [] (json mutable* j, int index);
 
 export [@member]
 extern int size(json*);

@@ -157,13 +157,14 @@ string uriToPath(string uri) {
 
 export LspMessage? getMessage(LspClient mutable* client) {
   const msg = try client^.readMessage();
-  mutable j = json_parse(msg);
-  if (!j) {
-    printf("Parsing error {j.error}\n");
+  mutable jarr = json_parse(msg);
+  if (!jarr) {
+    printf("Parsing error {jarr.error}\n");
     printf("{msg}\n");
     printf("========\n");
     return null;
   }
+  const j = &jarr^[0];
   printf("Message {j^.dump(2)}\n");
   if (j^.contains("result")) {
     const id = j^["id"].get<int>();
