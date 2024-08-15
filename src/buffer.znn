@@ -86,7 +86,7 @@ export string joinLines(Buffer* buffer) {
   return move(ret);
 }
 
-export int ? currentIndentation(Buffer* buffer, vec2 cursor) {
+export int? currentIndentation(Buffer* buffer, vec2 cursor) {
   for (x : range(0, cursor.x))
     if (!buffer^.text[cursor.y][x].isspace())
       return null;
@@ -115,7 +115,7 @@ export void changeIndent(Buffer mutable* buf, mutable vec2 start, mutable vec2 e
   } else
     for (i : range(start.y, end.y + 1))
       if (buf^.text[i].starts_with(&tabs))
-        buf^.text[i] = buf^.text[i].substring(-amount, buf^.text[i].size() + amount);
+        buf^.text[i] = buf^.text[i].substring_slow(-amount);
 }
 
 
@@ -137,7 +137,7 @@ export string getString(Buffer* buf, mutable vec2 startPos, mutable vec2 endPos)
     if (!ret.empty())
       ret += "\n";
     const begin = startPos.y == origStartLine ? startPos.x : 0;
-    ret += buf^.text[startPos.y].substring(begin,
+    ret += buf^.text[startPos.y].substring_slow(begin,
         (startPos.y == endPos.y ? endPos.x : buf^.text[startPos.y].size()) - begin);
     ++startPos.y;
   }
@@ -153,8 +153,8 @@ export vec2 erase(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPo
 }
 
 export vec2 eraseNoHistory(Buffer mutable* buf, mutable vec2 startPos, mutable vec2 endPos) {
-  buf^.text[startPos.y] = buf^.text[startPos.y].substring(0, startPos.x) +
-      buf^.text[endPos.y].substring(endPos.x, buf^.text[endPos.y].size() - endPos.x);
+  buf^.text[startPos.y] = buf^.text[startPos.y].prefix(startPos.x) +
+      buf^.text[endPos.y].substring_slow(endPos.x);
   for (i : range(0, endPos.y - startPos.y))
     buf^.text.remove(startPos.y + 1);
   return startPos;
@@ -187,13 +187,13 @@ export vec2 onText(Buffer mutable* buf, string text, vec2 pos) {
   if (!buf^.lastEdit || buf^.lastEdit^.type != LastEditType::TEXT || (pos - buf^.lastEdit^.cursor).length4() > 1)
     buf^.addHistory(pos, newPos);
   buf^.onEdited(LastEditInfo(LastEditType::TEXT, pos));
-  buf^.text[pos.y] = buf^.text[pos.y].insert(pos.x, text);
+  buf^.text[pos.y] = buf^.text[pos.y].insert_slow(pos.x, text);
   return newPos;
 }
 
 export vec2 onTextNoHistory(Buffer mutable* buf, string text, vec2 pos) {
   const newPos = pos + vec2(text.size(), 0);
-  buf^.text[pos.y] = buf^.text[pos.y].insert(pos.x, text);
+  buf^.text[pos.y] = buf^.text[pos.y].insert_slow(pos.x, text);
   return newPos;
 }
 
@@ -212,8 +212,8 @@ export vec2 onEnterNoHistory(Buffer mutable* buf, vec2 pos, bool withIndent) {
   buf^.text.insert(pos.y + 1, indent);
   if (pos.x < buf^.text[pos.y].size()) {
     buf^.text[pos.y + 1] = buf^.text[pos.y + 1] +
-        buf^.text[pos.y].substring(pos.x, buf^.text[pos.y].size() - pos.x);
-    buf^.text[pos.y] = buf^.text[pos.y].substring(0, pos.x);
+        buf^.text[pos.y].substring_slow(pos.x);
+    buf^.text[pos.y] = buf^.text[pos.y].prefix(pos.x);
   }
   return vec2(indent.size(), pos.y + 1);
 }
@@ -228,8 +228,8 @@ export vec2 onBackspace(Buffer mutable* buf, mutable vec2 pos, int tabWidth) {
           return 1;
       return pos.x % tabWidth == 0 ? tabWidth : 1;
     }();
-    buf^.text[pos.y] = buf^.text[pos.y].substring(0, pos.x - numChars)
-        + buf^.text[pos.y].substring(pos.x, buf^.text[pos.y].size() - pos.x);
+    buf^.text[pos.y] = buf^.text[pos.y].prefix(pos.x - numChars)
+        + buf^.text[pos.y].substring_slow(pos.x);
     pos.x -= numChars;
   } else if (pos.y > 0) {
     pos.x = buf^.text[pos.y - 1].size();
@@ -248,8 +248,8 @@ export vec2 onDelete(Buffer mutable* buf, vec2 pos) {
     buf^.addHistory(pos, pos);
   buf^.onEdited(LastEditInfo(LastEditType::DELETE, pos));
   if (pos.x < buf^.text[pos.y].size()) {
-    buf^.text[pos.y] = buf^.text[pos.y].substring(0, pos.x)
-      + buf^.text[pos.y].substring(pos.x + 1, buf^.text[pos.y].size() - pos.x - 1);
+    buf^.text[pos.y] = buf^.text[pos.y].prefix(pos.x)
+      + buf^.text[pos.y].substring_slow(pos.x + 1);
   } else if (pos.x < buf^.text.size() - 1) {
     buf^.text[pos.y] += buf^.text[pos.y + 1];
     buf^.text.remove(pos.y + 1);

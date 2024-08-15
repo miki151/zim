@@ -37,6 +37,6 @@ export vector<string> changeIndentation(vector<string> lines, int size) {
   mutable ret = vector<string>();
   mutable indent = getIndent(size);
   for (line : lines)
-    ret.push_back(line^.empty() ? "" : indent + line^.substring(minIndent));
+    ret.push_back(line^.empty() ? "" : indent + line^.substring_slow(minIndent));
   return move(ret);
 }

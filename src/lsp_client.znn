@@ -152,7 +152,7 @@ string urlDecode(string src) {
 
 string uriToPath(string uri) {
   assert(uri.starts_with(&"file://"));
-  return uri.substring("file://".size()).urlDecode();
+  return uri.substring_slow("file://".size()).urlDecode();
 }
 
 export LspMessage? getMessage(LspClient mutable* client) {

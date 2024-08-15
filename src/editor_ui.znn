@@ -144,9 +144,9 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
       const reverse = state^.searchedText^.reverse;
       const line = ((reverse ? -lineIndex - 1 : lineIndex) + data^.cursor.y + numLines) % numLines;
       const beginPos = (lineIndex == 0 && !reverse) ? data^.cursor.x + 1 : 0;
-      if (const index = data^.buffer.text[line].find(beginPos, &state^.searchedText^.text)) {
-        data^.selectionStart = vec2(*index, line);
-        data^.cursor = vec2(*index + state^.searchedText^.text.size(), line);
+      if (const index = data^.buffer.text[line].find_slow(beginPos, &state^.searchedText^.text)) {
+        data^.selectionStart = vec2(index^.index, line);
+        data^.cursor = vec2(index^.index + state^.searchedText^.text.size(), line);
         if ((line - data^.scrollPos.y) * textSize.y > r^.height() || line < data^.scrollPos.y)
           data^.scrollPos = vec2(0, max(0, line - r^.height() / (2 * textSize.y)));
         state^.searchedText = null;
@@ -159,7 +159,7 @@ void scrollToSearchedText(UIContext context, rectangle* r, vec2 textSize) {
 export string? getSelectedTextInLine(EditorUIData* data) {
   if (!!data^.selectionStart && data^.cursor.y == data^.selectionStart^.y &&
       data^.cursor.x != data^.selectionStart^.x) {
-    return data^.buffer.text[data^.cursor.y].substring(
+    return data^.buffer.text[data^.cursor.y].substring_slow(
         min(data^.selectionStart^.x, data^.cursor.x), abs(data^.selectionStart^.x - data^.cursor.x));
   }
   return null;
@@ -233,8 +233,8 @@ void highlightBrackets(EditorUI* editor, EditorUIData* data, UICanvas* canvas, m
 void highlightSelectionMirror(EditorUI* editor, string selected, EditorUIData* data, UICanvas* canvas, vec2 textSize,
     rectangle* r, string* lineStr, int lineIndex) {
   for (ind = lineStr^.find(&selected); !!ind; ind = lineStr^.find(*ind + 1, &selected))
-    if (lineIndex != data^.cursor.y || (*ind != data^.cursor.x && *ind != data^.selectionStart^.x)) {
-      const spos = r^.v1 + textSize.pairwise_mult(vec2(*ind, lineIndex) - data^.scrollPos);
+    if (lineIndex != data^.cursor.y || (ind^.index != data^.cursor.x && ind^.index != data^.selectionStart^.x)) {
+      const spos = r^.v1 + textSize.pairwise_mult(vec2(ind^.index, lineIndex) - data^.scrollPos);
       canvas^.fillRectangle(&rectangle(spos, spos + vec2(selected.size() * textSize.x, textSize.y)),
           &editor^.selectionMirrorColor);
     }
@@ -488,8 +488,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         if (p1.y > p2.y || (p1.y == p2.y && p1.x > p2.x))
           swap(&p1, &p2);
         const matches = [&] (vec2 pos, string text) {
-          const res = data^.buffer.text[pos.y].substring(pos.x, text.size()) == text;
-          return res;
+          return data^.buffer.text[pos.y].contains_slow(pos.x, &text);
         };
         while (!matches(p1, "/*")) {
           --p1.x;
@@ -515,7 +514,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           discard data^.buffer.eraseNoHistory(p2, p2 + vec2(2, 0));
           discard data^.buffer.eraseNoHistory(p1, p1 + vec2(2, 0));
         } else if (data^.buffer.text[data^.cursor.y].starts_with(&"//")) {
-          data^.buffer.text[data^.cursor.y] = data^.buffer.text[data^.cursor.y].substring(2);
+          data^.buffer.text[data^.cursor.y] = data^.buffer.text[data^.cursor.y].substring_slow(2);
           data^.cursor.x -= 2;
         } else {
           data^.buffer.text[data^.cursor.y] = "//" + data^.buffer.text[data^.cursor.y];
