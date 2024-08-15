@@ -8,7 +8,7 @@ Def UnsavedColor 200 100 100 End
 Def FontSize 17 End
 
 Def NormalScrollingList(Content)
-  scrolling_list({ENTER DOWN {}}, {DOWN DOWN {}}, {UP DOWN {}}, fill(UnsavedColor), Content)
+  scrolling_list({ENTER DOWN {}}, {DOWN DOWN {} KEYPAD_2 DOWN {}}, {UP DOWN {} KEYPAD_8 DOWN {}}, fill(UnsavedColor), Content)
 End
 
 {
@@ -116,7 +116,7 @@ End
   using "next_buffer_path" position(CENTER, max_height 847 {
     fill(0 0 0)
     frame(1, 255 255 255)
-    margins(5, scrolling_list({LCTRL UP {}}, {DOWN DOWN {LCTRL} TAB DOWN {LCTRL}}, {UP DOWN {LCTRL}}, fill(UnsavedColor), {
+    margins(5, scrolling_list({LCTRL UP {}}, {DOWN DOWN {} KEYPAD_2 DOWN {LCTRL} TAB DOWN {LCTRL}}, {UP DOWN {} KEYPAD_8 DOWN {LCTRL}}, fill(UnsavedColor), {
       using "text" horizontal { width 5 {} label(20, 255 255 255) width 35 {} }
       if "errors" position(RIGHT_CENTER, horizontal { label(20, 255 0 0, "✗") width 5 {}})
       if "updated" position(RIGHT_CENTER, horizontal { label(20, 0 255 0, "✓") width 5 {}}  )
@@ -136,8 +136,8 @@ End
   using "prompt_callback_no" key_handler(N DOWN {} )
   using "prompt_callback_no" key_handler(ESCAPE DOWN {} )
   using "search_callback" key_handler(F DOWN {LCTRL} )
-  using "search_history_up_callback" key_handler(UP DOWN {} )
-  using "search_history_down_callback" key_handler(DOWN DOWN {} )
+  using "search_history_up_callback" { key_handler(KEYPAD_8 DOWN {} ) key_handler(UP DOWN {} ) }
+  using "search_history_down_callback" { key_handler(KEYPAD_2 DOWN {} ) key_handler(DOWN DOWN {} ) }
   using "search_repeat_callback" key_handler(G DOWN {LCTRL} )
   using "search_reverse_repeat_callback" key_handler(G DOWN {LCTRL LSHIFT} )
   using "search_paste_callback" key_handler(V DOWN {LCTRL} )
@@ -146,8 +146,8 @@ End
   using "open_file_callback" key_handler(O DOWN {LCTRL} )
   using "new_file_callback" key_handler(N DOWN {LCTRL} )
   using "close_file_callback" key_handler(Q DOWN {LCTRL} )
-  using "navigate_back_callback" key_handler(LEFT DOWN {LALT} )
-  using "navigate_forward_callback" key_handler(RIGHT DOWN {LALT} )
+  using "navigate_back_callback" { key_handler(KEYPAD_4 DOWN {LALT} ) key_handler(LEFT DOWN {LALT} )}
+  using "navigate_forward_callback" { key_handler(KEYPAD_6 DOWN {LALT} ) key_handler(RIGHT DOWN {LALT} )}
   using "switch_to_header_callback" key_handler(F4 DOWN {} )
   using "ui_refresh_callback" key_handler(F1 DOWN {} )
   using "go_to_definition_callback" key_handler(F3 DOWN {} )

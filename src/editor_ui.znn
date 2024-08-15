@@ -296,6 +296,14 @@ export void render(EditorUI* editor, UIContext context, rectangle* r) {
   renderErrors(editor, context, r, textSize);
 }
 
+bool isNavigationKey(key_type key) {
+  switch (key) {
+    case (UP, DOWN, PAGE_UP, PAGE_DOWN, HOME, END, KEYPAD_1, KEYPAD_2, KEYPAD_3, KEYPAD_4,
+        KEYPAD_6, KEYPAD_7, KEYPAD_8, KEYPAD_9) { return true; }
+    default { return false; }
+  }
+}
+
 export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_event* event) {
   const state = context.state^.get_state<EditorUIState>();
   const data = **context.data^.cast_to<EditorUIData mutable*>();
@@ -305,9 +313,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
   const lalt = event^.modifiers.contains(key_event_modifier::LALT);
   const lctrl = event^.modifiers.contains(key_event_modifier::LCTRL);
   const lshift = event^.modifiers.contains(key_event_modifier::LSHIFT);
-  if (event^.key == key_type::UP || event^.key == key_type::DOWN
-      || event^.key == key_type::PAGE_UP || event^.key == key_type::PAGE_DOWN
-      || event^.key == key_type::HOME || event^.key == key_type::END) {
+  if (isNavigationKey(event^.key)) {
     if (lshift) {
       if (!data^.selectionStart)
         data^.selectionStart = data^.getVisibleCursor(&data^.buffer);
@@ -336,7 +342,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           data^.cursor = data^.buffer.onDelete(data^.getVisibleCursor(&data^.buffer));
       }
     }
-    case (HOME) {
+    case (HOME, KEYPAD_7) {
       mutable indent = 0;
       for (c : data^.buffer.text[data^.cursor.y])
         if (*c == ' ')
@@ -348,20 +354,20 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       else
         data^.cursor.x = indent;
     }
-    case (END) {
+    case (END, KEYPAD_1) {
       data^.cursor.x = data^.buffer.text[data^.cursor.y].size();
     }
-    case (UP) {
+    case (UP, KEYPAD_8) {
       data^.cursor.y = max(0, data^.cursor.y - 1);
     }
-    case (DOWN) {
+    case (DOWN, KEYPAD_2) {
       data^.cursor.y = min(data^.buffer.text.size() - 1, data^.cursor.y + 1);
     }
-    case (PAGE_UP) {
+    case (PAGE_UP, KEYPAD_9) {
       state^.addCursorHistory(data^.cursor, data^.buffer.index);
       data^.cursor.y = max(0, data^.cursor.y - r^.height() / textSize.y);
     }
-    case (PAGE_DOWN) {
+    case (PAGE_DOWN, KEYPAD_3) {
       state^.addCursorHistory(data^.cursor, data^.buffer.index);
       data^.cursor.y = min(data^.buffer.text.size() - 1, data^.cursor.y + r^.height() / textSize.y);
     }
@@ -377,7 +383,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
       else
         discard editor^.onTextEvent(context, r, getIndent(editor^.tabWidth));
     }
-    case (LEFT) {
+    case (LEFT, KEYPAD_4) {
       if (lshift)
         if (!data^.selectionStart)
           data^.selectionStart = data^.getVisibleCursor(&data^.buffer);
@@ -403,7 +409,7 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
         }
       }
     }
-    case (RIGHT) {
+    case (RIGHT, KEYPAD_6) {
       if (lshift)
         if (!data^.selectionStart)
           data^.selectionStart = data^.getVisibleCursor(&data^.buffer);
