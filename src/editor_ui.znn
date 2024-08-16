@@ -456,8 +456,9 @@ export bool onKeyEvent(EditorUI* editor, UIContext context, rectangle* r, key_ev
           data^.selectionStart = null;
         }
         mutable lines = breakLines(context.canvas^.getClipboard());
-        if (const newIndent = data^.buffer.currentIndentation(data^.getVisibleCursor(&data^.buffer)))
-          lines = changeIndentation(lines.copy(), *newIndent);
+        const cursor = data^.getVisibleCursor(&data^.buffer);
+        if (const newIndent = data^.buffer.currentIndentation(cursor))
+          lines = changeIndentation(lines.copy(), *newIndent, cursor.x);
         const oldCursor = data^.cursor;
         const textCopy = data^.buffer.text.copy();
         for (it : lines) {

@@ -30,13 +30,14 @@ export string getIndent(int size) {
   return move(ret);
 }
 
-export vector<string> changeIndentation(vector<string> lines, int size) {
+export vector<string> changeIndentation(vector<string> lines, int size, int cursorX) {
   mutable minIndent = 10000;
   for (line : lines)
     minIndent = min(minIndent, indentSize(&*line) ?? 10000);
   mutable ret = vector<string>();
-  mutable indent = getIndent(size);
-  for (line : lines)
+  for (line : lines) {
+    const indent = getIndent(line.index == 0 ? size - cursorX : size);
     ret.push_back(line^.empty() ? "" : indent + line^.substring_slow(minIndent));
+  }
   return move(ret);
 }
