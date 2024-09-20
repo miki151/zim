@@ -3,7 +3,7 @@ export import "std/box.znn";
 export import "std/pair.znn";
 
 export import "ui/ui.znn";
-import "ui/data.znn";
+export import "ui/data.znn";
 
 export import "highlighter.znn";
 import "buffer.znn";
@@ -14,20 +14,20 @@ import "scrolling_list_ui.znn";
 
 void setPrompt(ProgramState mutable* programState, string question, box<invoke<void>> callback_yes) {
   const uiData = &programState^.uiData;
-  uiData^.insert("prompt_callback_yes", [move(callback_yes), uiData] {
+  uiData^.addCallback("prompt_callback_yes", [move(callback_yes), uiData] {
     callback_yes^();
     uiData^.erase(&"prompt_callback_yes");
     uiData^.erase(&"prompt_callback_no");
     uiData^.erase(&"prompt_text");
-  }.box_as<UICallback>().box_as<any>());
-  uiData^.insert("prompt_callback_no", [uiData, programState] {
+  });
+  uiData^.addCallback("prompt_callback_no", [uiData, programState] {
     programState^.toDo.push_back([uiData] {
       uiData^.erase(&"prompt_callback_yes");
       uiData^.erase(&"prompt_callback_no");
       uiData^.erase(&"prompt_text");
     }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  uiData^.insert("prompt_text", question.box_as<any>());
+  });
+  uiData^.add("prompt_text", question);
 }
 
 bool isContentUnsaved(ProgramState* programState) {
@@ -331,24 +331,24 @@ int openFile(ProgramState mutable* programState, string path) {
 
 export void addPermanentCallbacks(ProgramState mutable* programState, bool mutable* exit,
     LspClientMap mutable* lspClientMap) {
-  programState^.uiData.insert("exit_callback", [programState, exit] {
+  programState^.uiData.addCallback("exit_callback", [programState, exit] {
     if (programState^.overlayInfo) {
       programState^.overlayInfo = null;
       return;
     } else
       setPrompt(programState, "Exit?", [exit] { *exit = true; }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("switch_buffer_callback", [programState] {
+  });
+  programState^.uiData.addCallback("switch_buffer_callback", [programState] {
     programState^.overlayInfo = OverlayInfo::switchBuffer();
     programState^.resetScrollingUIState(1);
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("open_file_callback", [programState] {
+  });
+  programState^.uiData.addCallback("open_file_callback", [programState] {
     programState^.toDo.push_back([programState] {
       for (file : getOpenFiles("Open file(s):"))
         programState^.openFileAndGoTo(*file);
     }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("new_file_callback", [programState] {
+  });
+  programState^.uiData.addCallback("new_file_callback", [programState] {
     programState^.toDo.push_back([programState] {
       const string? p = null;
       programState^.paths.push_back(move(p));
@@ -363,8 +363,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       ));
       programState^.currentBuffer = programState^.editorData.size() - 1;
     }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("close_file_callback", [programState, exit
+  });
+  programState^.uiData.addCallback("close_file_callback", [programState, exit
   ] {
     if (programState^.paths.size() == 1)
       setPrompt(programState, "Exit?", [exit] { *exit = true; }.box_as<invoke<void>>());
@@ -377,8 +377,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
       programState^.toDo.push_back([programState] {
         programState^.closeBuffer(programState^.currentBuffer);
       }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("save_callback", [programState] {
+  });
+  programState^.uiData.addCallback("save_callback", [programState] {
     for (elem : programState^.editorData) {
       const path = &programState^.paths[elem.index];
       if (elem^.buffer.isModified() || !*path) {
@@ -394,42 +394,42 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
         }
       }
     }
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("search_callback", [programState] {
+  });
+  programState^.uiData.addCallback("search_callback", [programState] {
     programState^.overlayInfo = OverlayInfo::search("");
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("file_search_callback", [programState] {
+  });
+  programState^.uiData.addCallback("file_search_callback", [programState] {
     programState^.overlayInfo = OverlayInfo::file(SearchInfo<FileSearchResult>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("location_search_callback", [programState] {
+  });
+  programState^.uiData.addCallback("location_search_callback", [programState] {
     if (const text = getSelectedTextInLine(programState^.getEditorData()))
       programState^.doLocationSearch(*text);
     else if (!programState^.overlayInfo && !!programState^.previousLocationSearch)
       programState^.overlayInfo = OverlayInfo::location(programState^.previousLocationSearch^.copy());
     else
       programState^.doLocationSearch("");
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("search_repeat_callback", [programState] {
+  });
+  programState^.uiData.addCallback("search_repeat_callback", [programState] {
     doSearchRepeat(programState, false);
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("search_reverse_repeat_callback", [programState] {
+  });
+  programState^.uiData.addCallback("search_reverse_repeat_callback", [programState] {
     doSearchRepeat(programState, true);
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("go_to_definition_callback", [programState, lspClientMap] {
+  });
+  programState^.uiData.addCallback("go_to_definition_callback", [programState, lspClientMap] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
       if (const client = lspClientMap^.getClient(*path))
         client^^.sendDefinitionRequest(*path, data^.cursor);
     }
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("find_references_callback", [programState, lspClientMap] {
+  });
+  programState^.uiData.addCallback("find_references_callback", [programState, lspClientMap] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
       if (const client = lspClientMap^.getClient(*path))
         client^^.sendReferencesRequest(*path, data^.cursor);
     }
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("completion_callback", [programState, lspClientMap] {
+  });
+  programState^.uiData.addCallback("completion_callback", [programState, lspClientMap] {
     if (const path = programState^.paths[programState^.currentBuffer]) {
       const data = programState^.getEditorData();
       if (const client = lspClientMap^.getClient(*path)) {
@@ -438,8 +438,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
         client^^.sendCompletionRequest(*path, data^.cursor);
       }
     }
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("navigate_back_callback", [programState] {
+  });
+  programState^.uiData.addCallback("navigate_back_callback", [programState] {
     programState^.toDo.push_back([programState] {
       const state = programState^.getEditorState();
       if (!state^.cursorHistory.empty()) {
@@ -450,8 +450,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
         state^.searchedPos = popped.pos;
       }
     }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("navigate_forward_callback", [programState] {
+  });
+  programState^.uiData.addCallback("navigate_forward_callback", [programState] {
     programState^.toDo.push_back([programState] {
       const state = programState^.getEditorState();
       if (!state^.cursorForward.empty()) {
@@ -462,8 +462,8 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
         state^.searchedPos = popped.pos;
       }
     }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
-  programState^.uiData.insert("switch_to_header_callback", [programState] {
+  });
+  programState^.uiData.addCallback("switch_to_header_callback", [programState] {
     const curPath = programState^.paths[programState^.getEditorData()^.buffer.index];
     if (!curPath)
       return;
@@ -481,7 +481,7 @@ export void addPermanentCallbacks(ProgramState mutable* programState, bool mutab
         programState^.addCursorHistory();
         programState^.switchToBuffer(*ind);
       }
-  }.box_as<UICallback>().box_as<any>());
+  });
 }
 
 void doLocationSearch(ProgramState mutable* programState, string text) {
@@ -576,7 +576,7 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
   programState^.uiData.erase(&"search_content");
   programState^.uiData.erase(&"search_paste_callback");
   programState^.uiData.erase(&"search_history_up_callback");
-  programState^.uiData.erase(&"search_history_down_callback");  
+  programState^.uiData.erase(&"search_history_down_callback");
   programState^.uiData.erase(&"location_results");
   programState^.uiData.erase(&"completion_results");
   programState^.uiData.erase(&"file_results");
@@ -586,42 +586,42 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
   const editorData = programState^.getEditorData();
   const editorState = programState^.getEditorState();
   if (!!programState^.hover && !programState^.hover^.content.empty() &&
-      posInRange(editorData^.cursor, programState^.hover^.startPos, programState^.hover^.endPos) && 
+      posInRange(editorData^.cursor, programState^.hover^.startPos, programState^.hover^.endPos) &&
       programState^.paths[programState^.currentBuffer] == programState^.hover^.file) {
     const v = programState^.hover^.content.transform(
         [](string* s) { return s^.box_as<any>(); });
-    programState^.uiData.insert("hoverText", move(v).box_as<any>());
+    programState^.uiData.add("hoverText", move(v));
   }
   if (!!programState^.signature && !programState^.signature^.elems.empty() &&
-      programState^.signature^.position == editorData^.cursor && 
+      programState^.signature^.position == editorData^.cursor &&
       programState^.paths[programState^.currentBuffer] == programState^.signature^.file) {
     const v = programState^.signature^.elems.transform(
         [](string* s) { return s^.box_as<any>(); });
-    programState^.uiData.insert("signatures", move(v).box_as<any>());
+    programState^.uiData.add("signatures", move(v));
   }
   if (programState^.overlayInfo)
     switch (*programState^.overlayInfo) {
       case (search) {
-        programState^.uiData.insert("search_paste_callback", [programState, &search, canvas] {
+        programState^.uiData.addCallback("search_paste_callback", [programState, &search, canvas] {
           if (programState^.searchHistoryIndex)
             search = programState^.searchHistory[*programState^.searchHistoryIndex];
           search = search + canvas^.getClipboard();
-        }.box_as<UICallback>().box_as<any>());
-        programState^.uiData.insert("search_history_up_callback", [programState, &search] {
+        });
+        programState^.uiData.addCallback("search_history_up_callback", [programState, &search] {
           if (!programState^.searchHistory.empty()) {
             programState^.searchHistoryIndex = max(0,
                 -1 + programState^.searchHistoryIndex ?? programState^.searchHistory.size());
           }
-        }.box_as<UICallback>().box_as<any>());
-        programState^.uiData.insert("search_history_down_callback", [programState, &search] {
+        });
+        programState^.uiData.addCallback("search_history_down_callback", [programState, &search] {
           if (!programState^.searchHistory.empty() && !!programState^.searchHistoryIndex) {
             if (*programState^.searchHistoryIndex >= programState^.searchHistory.size() - 1)
               programState^.searchHistoryIndex = null;
             else
               programState^.searchHistoryIndex = *programState^.searchHistoryIndex + 1;
           }
-        }.box_as<UICallback>().box_as<any>());
-        programState^.uiData.insert("search_confirm", [programState, &search]() {
+        });
+        programState^.uiData.addCallback("search_confirm", [programState, &search]() {
           if (programState^.searchHistoryIndex)
             search = programState^.searchHistory[*programState^.searchHistoryIndex];
           if (programState^.searchHistory.empty() || *programState^.searchHistory.back() != search)
@@ -634,8 +634,8 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
             programState^.getEditorState()^.searchedText = SearchedTextInfo(search, false);
           }
           programState^.overlayInfo = null;
-        }.box_as<UICallback>().box_as<any>());
-        programState^.uiData.insert("search_entry", [programState, &search](TextCallbackParam param) {
+        });
+        programState^.uiData.add("search_entry", [programState, &search](TextCallbackParam param) {
           if (programState^.searchHistoryIndex)
             search = programState^.searchHistory[*programState^.searchHistoryIndex];
           programState^.searchHistoryIndex = null;
@@ -648,24 +648,24 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
                 search = search.prefix(search.size() - 1);
             }
           }
-        }.box_as<UITextCallback>().box_as<any>());
-        programState^.uiData.insert("search_content", box_as<any>(!!programState^.searchHistoryIndex
+        }.box_as<UITextCallback>());
+        programState^.uiData.add("search_content", !!programState^.searchHistoryIndex
             ? programState^.searchHistory[*programState^.searchHistoryIndex]
-            : search));
+            : search);
       }
       case (file) {
-        programState^.uiData.insert("search_entry", [programState, &file](TextCallbackParam param) {
+        programState^.uiData.add("search_entry", [programState, &file](TextCallbackParam param) {
           file.handleTextEntry(move(param));
           programState^.doFileSearch(*file.entry);
           programState^.resetScrollingUIState();
-        }.box_as<UITextCallback>().box_as<any>());
-        programState^.uiData.insert("search_content", box_as<any>(*file.entry));
+        }.box_as<UITextCallback>());
+        programState^.uiData.add("search_content", *file.entry);
         mutable v = vector<box<any>>();
         for (elem : file.results) {
           mutable r = UIRecord();
           switch (*elem) {
-            case (path) { r.insert("text", path.box_as<any>()); }
-            case (line) { r.insert("text", "Line: {line}".box_as<any>()); }
+            case (path) { r.add("text", path); }
+            case (line) { r.add("text", "Line: {line}".box_as<any>()); }
           }
           v.push_back(move(r).box_as<any>());
         }
@@ -684,27 +684,27 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
               programState^.overlayInfo = null;
             }.box_as<invoke<void>>());
         };
-        programState^.uiData.insert("file_results", ScrollingListUIData(
+        programState^.uiData.add("file_results", ScrollingListUIData(
             move(v),
             move(confirmCallback).box_as<invoke<void, int>>()
-        ).box_as<any>());
+        ));
       }
       case (location) {
-        programState^.uiData.insert("search_entry", [programState, &location](TextCallbackParam param) {
+        programState^.uiData.add("search_entry", [programState, &location](TextCallbackParam param) {
           if (location.entry) {
             location.handleTextEntry(move(param));
             programState^.doLocationSearch(*location.entry);
             programState^.resetScrollingUIState();
           }
-        }.box_as<UITextCallback>().box_as<any>());
+        }.box_as<UITextCallback>());
         if (location.entry)
-          programState^.uiData.insert("search_content", box_as<any>(*location.entry));
+          programState^.uiData.add("search_content", *location.entry);
         mutable v = vector<box<any>>();
         for (elem : location.results) {
           mutable r = UIRecord();
-          r.insert("text", elem^.text.box_as<any>());
-          r.insert("path", programState^.getBufferName(elem^.bufferIndex).box_as<any>());
-          r.insert("line", elem^.line.to_string().box_as<any>());
+          r.add("text", elem^.text);
+          r.add("path", programState^.getBufferName(elem^.bufferIndex));
+          r.add("line", elem^.line.to_string());
           v.push_back(move(r).box_as<any>());
         }
         const confirmCallback = [programState, &location] (int index) {
@@ -717,13 +717,13 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
               programState^.getEditorState()^.searchedPos = vec2(0, result^.line - 1);
             }.box_as<invoke<void>>());
         };
-        programState^.uiData.insert("location_results", ScrollingListUIData(
+        programState^.uiData.add("location_results", ScrollingListUIData(
             move(v),
             move(confirmCallback).box_as<invoke<void, int>>()
-        ).box_as<any>());
+        ));
       }
       case (completion) {
-        programState^.uiData.insert("search_entry", [programState, &completion](TextCallbackParam param) {
+        programState^.uiData.add("search_entry", [programState, &completion](TextCallbackParam param) {
           const data = programState^.getEditorData();
           switch (param) {
             case (text) {
@@ -743,20 +743,20 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
               return option^.text.contains_slow(option^.numErased, &*completion.entry);
           });
           programState^.resetScrollingUIState();
-        }.box_as<UITextCallback>().box_as<any>());
+        }.box_as<UITextCallback>());
         mutable v = vector<box<any>>();
         for (elem : completion.results) {
           mutable r = UIRecord();
-          r.insert("text", elem^.label.box_as<any>());
+          r.add("text", elem^.label);
           v.push_back(move(r).box_as<any>());
         }
         const confirmCallback = [programState, &completion] (int index) {
           programState^.applyCompletion(&completion.results[index], completion.entry^.size());
         };
-        programState^.uiData.insert("completion_results", ScrollingListUIData(
+        programState^.uiData.add("completion_results", ScrollingListUIData(
             move(v),
             move(confirmCallback).box_as<invoke<void, int>>()
-        ).box_as<any>());
+        ));
       }
       case (switchBuffer) {
         mutable v = vector<box<any>>();
@@ -769,11 +769,11 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
             if (bufferName.starts_with(&"/"))
               bufferName = bufferName.substring_slow(1);
           }
-          r.insert("text", bufferName.box_as<any>());
+          r.add("text", bufferName);
           if (!programState^.editorData[bufferIndex].diagnostics.empty())
-            r.insert("errors", 1.box_as<any>());
+            r.add("errors");
           else if (programState^.editorData[bufferIndex].buffer.lspUpdated)
-            r.insert("updated", 1.box_as<any>());
+            r.add("updated");
           v.push_back(move(r).box_as<any>());
         }
         const callback = [programState] (int index) {
@@ -781,10 +781,10 @@ export void addOverlayCallbacks(ProgramState mutable* programState, UICanvas* ca
           programState^.switchToBuffer(programState^.bufferOrder[index]);
           programState^.overlayInfo = null;
         };
-        programState^.uiData.insert("next_buffer_path", ScrollingListUIData(
+        programState^.uiData.add("next_buffer_path", ScrollingListUIData(
             move(v),
             move(callback).box_as<invoke<void, int>>()
-        ).box_as<any>());
+        ));
       }
     }
 }
@@ -813,10 +813,10 @@ export string getBufferName(ProgramState* programState, int bufferIndex) {
 
 export void addConditionalCallbacks(ProgramState mutable* programState) {
   if (!isContentUnsaved(programState))
-    programState^.uiData.insert("no_changes", 1.box_as<any>());
+    programState^.uiData.add("no_changes", 1);
   else
     programState^.uiData.erase(&"no_changes");
-  programState^.uiData.insert("editor", box_as<any>(programState^.getEditorData()));
-  programState^.uiData.insert("buffer_name", (programState^.getBufferName(programState^.currentBuffer) +
-      " {programState^.getEditorData()^.cursor + vec2(1, 1)}").box_as<any>());
+  programState^.uiData.add("editor", programState^.getEditorData());
+  programState^.uiData.add("buffer_name", programState^.getBufferName(programState^.currentBuffer) +
+      " {programState^.getEditorData()^.cursor + vec2(1, 1)}");
 }

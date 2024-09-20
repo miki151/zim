@@ -163,14 +163,14 @@ int main(string[] args) {
   programState.currentBuffer = programState.bufferOrder[0];
   mutable exit = false;
   programState.addPermanentCallbacks(&exit, &lspClientMap);
-  programState.uiData.insert("ui_refresh_callback", [&] {
+  programState.uiData.addCallback("ui_refresh_callback", [&] {
     programState.toDo.push_back([&] {
       if (const res = readUIFrom(dataDir + "ui.txt"))
         ui = *move(res);
       else
         printf(res.get_error());
     }.box_as<invoke<void>>());
-  }.box_as<UICallback>().box_as<any>());
+  });
   mutable eventsState = SDLEventsState();
   mutable lastContentCheck = current_time_milli();
   mutable lastLspRequest = current_time_milli();
@@ -208,23 +208,14 @@ int main(string[] args) {
     const context = UIContext(&canvas, &programState.uiData, &programState.uiState, 0.1);
     for (event : eventsState.getEvents()) {
       switch (*event) {
-        case (windowResized) {
-          uiBounds = rectangle(vec2(0, 0), windowResized);
-        }
-        case (quit) { return 0; }
         case (key) {
           // work around the bogus tab event on alt+tab bug in sdl
-          if (key.key != key_type::TAB || !lastUnfocused || curTime > *lastUnfocused + 500)
-            discard ui^.onKeyEvent(context, &uiBounds, &key);
-        }
-        case (mouse) {
-          discard ui^.onMouseEvent(context, &uiBounds, &mouse);
-        }
-        case (text) {
-          discard ui^.onTextEvent(context, &uiBounds, text);
+          if (key.key == key_type::TAB && !!lastUnfocused && curTime < *lastUnfocused + 500)
+            continue;
         }
         default {}
       }
+      ui^.processEvent(context, &uiBounds, &*event);
     }
     ui^.render(context, &uiBounds);
     window.update();
